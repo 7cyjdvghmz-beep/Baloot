@@ -1366,6 +1366,16 @@ function simPolicy(st,seat){
     const safeWin=(pos===3)||(pMaster&&!ruffPossible(lead));
     if(safeWin){
       if(!voidLead){
+        // partner declared a project and is winning with a MASTER of its suit:
+        // my high card (esp. the 10) blocks his run — feed the fattest to unblock it
+        {
+          const pr=st.reveal&&st.reveal[ws];
+          if(pMaster&&pr&&(pr.suit===lead||!pr.suit)){
+            const big=legal.filter(c=>c.s===lead)
+              .sort((a,b)=>val(b)-val(a)||ORD_PLAIN.indexOf(b.r)-ORD_PLAIN.indexOf(a.r));
+            if(big.length)return{c:big[0],why:'تسليك سرا الشريك'};
+          }
+        }
         // forced to follow: load the fattest allowed card of the suit
         // when I'm LAST, partner's win is certain → bank the fattest card, Ace included
         if(pos===3){
@@ -1610,7 +1620,7 @@ function mcPick(info,opts){
       stf.hands[info.seat]=info.hand.map(c=>({s:c.s,r:c.r}));
       const plan=simPolicy(stf,info.seat);
       const CONV=['الشريك متقدم — رمية صغيرة','إشارة للشريك','تربيع خلف سحب الشريك','تحميل على سحب الشريك',
-        'تحميل نقاط للشريك','تهريب الإكة للشريك (آمن)','رمية محايدة','أخذ بالماستر لضمان اللمة','يد ثانية صغيرة','تحميل بإشارة','رمي أصغر ورقة','تتبّع بأصغر ورقة'];
+        'تحميل نقاط للشريك','تهريب الإكة للشريك (آمن)','رمية محايدة','أخذ بالماستر لضمان اللمة','يد ثانية صغيرة','تحميل بإشارة','رمي أصغر ورقة','تتبّع بأصغر ورقة','تسليك سرا الشريك'];
       if(plan&&plan.c&&CONV.indexOf(plan.why)>=0){
         const pi=legal.findIndex(c=>c.s===plan.c.s&&c.r===plan.c.r);
         if(pi>=0)return{card:legal[pi],why:plan.why,ev:null,n:0};
