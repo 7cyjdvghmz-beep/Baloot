@@ -920,7 +920,19 @@ function legalCards(seat){
   if(!G.trick.length)return h.slice();
   const lead=G.trick[0].card.s;
   const fol=h.filter(c=>c.s===lead);
-  if(fol.length)return fol; // must follow suit
+  if(fol.length){
+    // الحكم مفتوح: التعلية إجبارية فوق أعلى حكم للخصم إن أمكن (لا إجبار فوق الشريك)
+    const ts0=trumpSuit();
+    if(ts0&&lead===ts0){
+      let top=null,tw=null;
+      for(const p of G.trick){if(p.card.s===ts0&&(!top||ORD_TRUMP.indexOf(p.card.r)>ORD_TRUMP.indexOf(top.r))){top=p.card;tw=p.seat;}}
+      if(top&&TEAM[tw]!==TEAM[seat]){
+        const over=fol.filter(c=>ORD_TRUMP.indexOf(c.r)>ORD_TRUMP.indexOf(top.r));
+        if(over.length)return over;
+      }
+    }
+    return fol; // must follow suit
+  }
   const ts=trumpSuit();
   if(!ts)return h.slice(); // sun: any card
   // hokm: out of led suit
@@ -1061,7 +1073,19 @@ function simStr(mode,trump,lead,c){if(mode==='hokm'&&c.s===trump)return 200+ORD_
 function simLegal(hand,trick,mode,trump,seat){
   if(!trick.length)return hand.slice();
   const lead=trick[0].card.s;
-  const f=hand.filter(c=>c.s===lead);if(f.length)return f;
+  const f=hand.filter(c=>c.s===lead);
+  if(f.length){
+    // trump led: must raise over the OPPONENT's top trump when able
+    if(mode==='hokm'&&trump&&lead===trump&&seat){
+      let top=null,tw=null;
+      for(const p of trick){if(p.card.s===trump&&(!top||ORD_TRUMP.indexOf(p.card.r)>ORD_TRUMP.indexOf(top.r))){top=p.card;tw=p.seat;}}
+      if(top&&TEAM[tw]!==TEAM[seat]){
+        const over=f.filter(c=>ORD_TRUMP.indexOf(c.r)>ORD_TRUMP.indexOf(top.r));
+        if(over.length)return over;
+      }
+    }
+    return f;
+  }
   if(mode!=='hokm'||!trump)return hand.slice();
   let ws=null,wstr=-1;for(const p of trick){const x=simStr(mode,trump,lead,p.card);if(x>wstr){wstr=x;ws=p.seat;}}
   const partnerWin=seat&&ws&&TEAM[ws]===TEAM[seat];
