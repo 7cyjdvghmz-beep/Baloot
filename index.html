@@ -238,7 +238,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v101</div>
+  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v106</div>
 <div id="topbar">
     <div class="tb">⋯<small>المزيد</small></div>
     <div class="tb" id="dbg-btn">🐞<small>تدقيق</small></div>
@@ -646,7 +646,7 @@ function startHand(){
      curBid:null,bidActed:{S:false,W:false,N:false,E:false},
      trick:[],tricksWon:{0:[],1:[]},lastTrickWinner:null,trickNo:1,
      seatProjects:{},declared:{},declaredDone:{},ownerProjects:{},projectWinner:null,projectPoints:0,
-     baloot:{declared:false,team:null},_kq:{},announced:{},projShown:{},arrange:false,manualOrder:false,justDealt:true,handId:Date.now()};
+     baloot:{declared:false,team:null},_kq:{},announced:{},projShown:{},projHidden:{},arrange:false,manualOrder:false,justDealt:true,handId:Date.now()};
   if(typeof DBG!=='undefined'){DBG.stack.length=0;DBG.paused=false;DBG.gen=(DBG.gen||0)+1;if(DBG.on)setTimeout(dbgBar,50);}
   const ab=el('arrange-btn');if(ab){ab.textContent='↕ ترتيب';ab.classList.remove('on');}
   renderAll();renderBuyer(true);renderBadges();
@@ -937,7 +937,7 @@ function computeProjectWinner(){
     setTimeout(()=>toast('مشاريع '+(w===0?'لنا':'لهم'),names.join(' + ')+' · '+tot),300);
   }
 }
-function projectsVisible(){return G.phase==='play'&&G.trickNo===2;}
+function projectsVisible(){return G.phase==='play'&&G.trickNo>=2;}
 
 /* ---------- play ---------- */
 function trumpSuit(){return G.mode==='hokm'?G.trump:null;}
@@ -1164,6 +1164,8 @@ function simDeclLeadHokm(st,seat,legal){
   //  • ما معك البوس → تربّع بأصغر حكم لإطاحة الولد، واحتفظ بالأعلى ليأكل لاحقًا
   if(myT.length&&oppMayT){
     if(simIsMaster(st,seat,myT[0]))return{c:myT[0],why:'تربيع بالبوس'};
+    // شريك المشتري: يربّع دائمًا قبل صرف الماسترات، وبأكبر حكم عنده
+    if(!isDeclarer)return{c:myT[0],why:'تربيع الشريك بأكبر حكم'};
     if(myT.length>=4)return{c:myT[myT.length-1],why:'مواصلة التربيع بأصغر حكم'};
     if(ORD_TRUMP.indexOf(myT[0].r)>=ORD_TRUMP.indexOf('10'))return{c:myT[myT.length-1],why:'تربيع بأصغر حكم لإطاحة الولد'};
   }
@@ -1718,7 +1720,7 @@ function mcPick(info,opts){
         pts:{0:0,1:0},lastWin:null,floor:info.floor||null};
       stp.hands[info.seat]=info.hand.map(c=>({s:c.s,r:c.r}));
       const plan=simDeclLeadHokm(stp,info.seat,legal.map(c=>({s:c.s,r:c.r})));
-      if(plan&&plan.c&&(plan.c.s===info.trump||plan.why==='حفظ الحكم'||plan.why==='دق برأس التتابع'||plan.why==='خدمة مشروع الشريك'||plan.why==='تغذية إكة الأرض عند الشريك'||plan.why==='تربيع بالبوس'||plan.why==='تربيع بأصغر حكم لإطاحة الولد'||plan.why==='مواصلة التربيع بأصغر حكم')){
+      if(plan&&plan.c&&(plan.c.s===info.trump||plan.why==='حفظ الحكم'||plan.why==='دق برأس التتابع'||plan.why==='خدمة مشروع الشريك'||plan.why==='تغذية إكة الأرض عند الشريك'||plan.why==='تربيع بالبوس'||plan.why==='تربيع بأصغر حكم لإطاحة الولد'||plan.why==='تربيع الشريك بأكبر حكم'||plan.why==='مواصلة التربيع بأصغر حكم')){
         const pi=legal.findIndex(c=>c.s===plan.c.s&&c.r===plan.c.r);
         if(pi>=0)return{card:legal[pi],why:plan.why,ev:null,n:0};
       }
@@ -1906,12 +1908,43 @@ function playCard(seat,card){
     const list=declaredList(seat);
     if(list.length){const txt=list.length>1?list.map(x=>x.name).join(' + '):list[0].name;
       setTimeout(()=>bubble(seat,txt,1200),120);}}
-  if(G.trickNo===2&&G.ownerProjects&&G.ownerProjects[seat]&&!G.projShown[seat]){
+  if(G.trickNo>=2&&G.ownerProjects&&G.ownerProjects[seat]&&!G.projShown[seat]){
     G.projShown[seat]=true;G._justShownSeat=seat;
-    setTimeout(()=>{renderProjects();renderBadges();G._justShownSeat=null;},220);
+    setTimeout(()=>{renderProjects();renderBadges();G._justShownSeat=null;
+      scheduleProjHide(seat);},220);
   }
   if(G.trick.length===4){setActive(null);const g=DBG.gen||0;setTimeout(()=>{if((DBG.gen||0)===g)resolveTrick();},750);}
   else{G.turn=nextSeat(G.turn);playStep();}
+}
+function scheduleProjHide(seat){
+  // projects stay up for 6s, then the cards gather together and disappear
+  const g=(DBG.gen||0), hid=G.handId;
+  setTimeout(()=>{
+    if((DBG.gen||0)!==g||G.handId!==hid)return;          // hand changed / undo → skip
+    const box=el('proj-'+P(seat)); if(!box)return;
+    const cards=box.querySelectorAll('.card');
+    if(!cards.length){G.projHidden=G.projHidden||{};G.projHidden[seat]=true;return;}
+    // 1) gather: every card slides onto the middle one
+    const mid=(cards.length-1)/2;
+    cards.forEach((c,i)=>{
+      c.style.transition='transform .45s cubic-bezier(.4,0,.2,1), opacity .35s ease .35s';
+      const base=c.style.transform||'';
+      c.style.transform=base+' translateX('+((mid-i)*22).toFixed(1)+'px)';
+    });
+    // 2) then the whole stack fades out
+    setTimeout(()=>{
+      if((DBG.gen||0)!==g||G.handId!==hid)return;
+      box.style.transition='opacity .4s ease, transform .4s ease';
+      box.style.opacity='0';box.style.transform=(box.style.transform||'')+' scale(.82)';
+      setTimeout(()=>{
+        if((DBG.gen||0)!==g||G.handId!==hid)return;
+        G.projHidden=G.projHidden||{};G.projHidden[seat]=true;
+        box.innerHTML='';box.style.opacity='';box.style.transition='';box.style.transform='';
+        G._projSig=null;                       // invalidate cache so the redraw happens
+        try{renderProjects();renderBadges();}catch(e){}
+      },430);
+    },460);
+  },6000);
 }
 function checkBaloot(seat,card){
   if(G.mode!=='hokm'||card.s!==G.trump||(card.r!=='K'&&card.r!=='Q'))return;
@@ -1956,7 +1989,9 @@ function collectTrick(ws,done){
 function cardPts(c){return(G.mode==='hokm'&&c.s===trumpSuit())?HK_TRUMP[c.r]:SUN_VAL[c.r];}
 function scoreHand(){
   let raw={0:0,1:0};for(const t of[0,1])for(const c of G.tricksWon[t])raw[t]+=cardPts(c);
-  raw[TEAM[G.lastTrickWinner]]+=10;
+  const eats={0:raw[0],1:raw[1]};                       // الأكلات قبل نقاط الأرض
+  const landTeam=TEAM[G.lastTrickWinner];
+  raw[landTeam]+=10;
   const POOL=G.mode==='sun'?26:16;let units={0:0,1:0};
   if(G.mode==='sun'){units[0]=Math.round(raw[0]*2/10);units[1]=POOL-units[0];}
   else{units[0]=Math.round(raw[0]/10);units[1]=POOL-units[0];}
@@ -1967,32 +2002,70 @@ function scoreHand(){
   const totD=units[d]+projU[d]+bal[d], totO=units[o]+projU[o]+bal[o];
   if(totD<=totO){
     board[o]=POOL+projU[0]+projU[1]+bal[0]+bal[1];board[d]=0;
-    toast('بايتة!',(o===0?'لنا':'لهم')+' تأخذ القبضة');
+    toast('خسارة!',(o===0?'لنا':'لهم')+' تأخذ القبضة');
   }else{board[0]=units[0]+projU[0]+bal[0];board[1]=units[1]+projU[1]+bal[1];}
   MATCH.us+=board[0];MATCH.them+=board[1];updateScores();
-  setTimeout(()=>showHandResult(raw,units,projU,bal,board),700);
+  const baytah=(totD<=totO);
+  setTimeout(()=>showHandResult(raw,units,projU,bal,board,{eats,landTeam,baytah}),700);
 }
-function showHandResult(raw,units,projU,bal,board){
+function showHandResult(raw,units,projU,bal,board,extra){
+  extra=extra||{};
+  const eats=extra.eats||{0:raw[0],1:raw[1]};
+  const landTeam=(extra.landTeam===0||extra.landTeam===1)?extra.landTeam:null;
   const modeTxt=G.mode==='sun'?'صن':('حكم '+SUIT_SYM[G.trump]);
+  const declUs=(TEAM[G.declarer]===0);
+  const res=extra.baytah?'<b style="color:#b5482f">خسارة</b>':'<b style="color:#1f6b40">ربحانة</b>';
+  // project names per team (for the middle rows)
+  const projNames={0:[],1:[]};
+  for(const s of SEATS){const l=(typeof declaredList==='function')?declaredList(s):[];
+    for(const it of l)projNames[TEAM[s]].push(it.name);}
+  const AR=n=>String(n);
+  const row=(label,us,them,cls)=>`<tr class="${cls||''}"><td class="lbl">${label}</td>
+      <td class="num">${us===''?'':AR(us)}</td><td class="num">${them===''?'':AR(them)}</td></tr>`;
+  let rows='';
+  rows+=row('الأكلات',eats[0],eats[1]);
+  rows+=row('الأرض',landTeam===0?10:'',landTeam===1?10:'');
+  const pn=[...new Set(projNames[0])].join(' + ')||'—';
+  const pn2=[...new Set(projNames[1])].join(' + ')||'—';
+  if(G.projectPoints){
+    const pw=G.projectWinner;
+    rows+=`<tr><td class="lbl">المشاريع<span class="sub">${pw===0?pn:(pw===1?pn2:'')}</span></td>
+      <td class="num">${pw===0?G.projectPoints:''}</td><td class="num">${pw===1?G.projectPoints:''}</td></tr>`;
+  }
+  if(bal[0]||bal[1])rows+=row('بلوت',bal[0]?20:'',bal[1]?20:'');
+  rows+=row('الأبناط',raw[0],raw[1],'sumrow');
   el('sheet').innerHTML=`
-    <h2>نتيجة اليد</h2>
-    <p>العقد: <b>${modeTxt}</b> · المشتري: ${PLATE[G.declarer].nm}</p>
-    <div style="display:flex;gap:10px;margin-bottom:14px">
-      <div style="flex:1;background:rgba(46,139,87,.16);border-radius:12px;padding:10px">
-        <div style="color:#1f6b40;font-weight:800">لنا</div>
-        <div style="font-size:12px;opacity:.8">${raw[0]} نقطة → ${units[0]}${projU[0]?` +${projU[0]} مشروع`:''}${bal[0]?' +٢ بلوت':''}</div>
-        <div style="font-size:24px;font-weight:900;color:#1f6b40">+${board[0]}</div></div>
-      <div style="flex:1;background:rgba(181,72,47,.16);border-radius:12px;padding:10px">
-        <div style="color:#9b3a22;font-weight:800">لهم</div>
-        <div style="font-size:12px;opacity:.8">${raw[1]} نقطة → ${units[1]}${projU[1]?` +${projU[1]} مشروع`:''}${bal[1]?' +٢ بلوت':''}</div>
-        <div style="font-size:24px;font-weight:900;color:#9b3a22">+${board[1]}</div></div>
+    <style>
+      .rsum{width:100%;border-collapse:collapse;font-family:inherit}
+      .rsum td{padding:9px 10px;font-size:15px}
+      .rsum .lbl{text-align:right;font-weight:700;color:#3a2f1c}
+      .rsum .lbl .sub{display:block;font-size:11px;font-weight:600;opacity:.6}
+      .rsum .num{text-align:center;font-weight:800;font-variant-numeric:tabular-nums;width:34%}
+      .rsum thead td{font-weight:900;font-size:16px;border-bottom:2px solid rgba(0,0,0,.15)}
+      .rsum .sumrow td{border-top:2px solid rgba(0,0,0,.15)}
+      .rfinal{display:flex;margin-top:8px;border-radius:12px;overflow:hidden;border:1px solid rgba(0,0,0,.12)}
+      .rfinal div{flex:1;text-align:center;padding:10px;font-size:26px;font-weight:900}
+      .rhead{background:rgba(0,0,0,.05);border-radius:12px;padding:9px 12px;margin-bottom:10px;font-size:14px}
+    </style>
+    <div class="rhead">اللعبة: <b>${modeTxt}</b> · المشتري: <b>${declUs?'فريقنا':'فريقهم'}</b> · نتيجة الشراء: ${res}</div>
+    <table class="rsum"><thead><tr><td></td><td class="num">لنا</td><td class="num">لهم</td></tr></thead>
+      <tbody>${rows}</tbody></table>
+    <div class="rfinal">
+      <div style="background:rgba(46,139,87,.16);color:#1f6b40">+${board[0]}</div>
+      <div style="background:rgba(181,72,47,.16);color:#9b3a22">+${board[1]}</div>
     </div>
-    <div style="margin-bottom:14px">المجموع: <b>${MATCH.us}</b> — <b>${MATCH.them}</b></div>
-    <div class="btn-row"><button class="btn" id="nh">اليد التالية ▸</button></div>`;
+    <div style="margin:12px 0 6px;text-align:center;font-size:15px">المجموع: <b>${MATCH.us}</b> — <b>${MATCH.them}</b></div>
+    <div class="btn-row"><button class="btn" id="nh">عودة</button></div>`;
   el('modal').classList.add('show');
-  el('nh').onclick=()=>{el('modal').classList.remove('show');
+  const go=()=>{
+    if(G._resTimer){clearTimeout(G._resTimer);G._resTimer=null;}
+    el('modal').classList.remove('show');
     if(MATCH.us>=152||MATCH.them>=152)return showWinner();
     MATCH.dealer=nextSeat(MATCH.dealer);startHand();};
+  el('nh').onclick=go;
+  // يختفي تلقائيًا بعد ١٠ ثوانٍ إن لم يُضغط «عودة»
+  if(G._resTimer)clearTimeout(G._resTimer);
+  G._resTimer=setTimeout(go,20000);
 }
 function showWinner(){
   const win=MATCH.us>MATCH.them?'لنا':'لهم';
@@ -2183,14 +2256,14 @@ function renderBadges(){
     }else cb.style.display='none';
     const pb=seat.querySelector('.badge.project');
     const op=G.ownerProjects&&G.ownerProjects[s];
-    if(projectsVisible()&&op&&G.projShown[s]){pb.textContent=op.name;pb.style.display='block';}
+    if(projectsVisible()&&op&&G.projShown[s]&&!(G.projHidden&&G.projHidden[s])){pb.textContent=op.name;pb.style.display='block';}
     else pb.style.display='none';
   }
   renderProjects();
 }
 function renderProjects(){
   const editing=document.body.classList.contains('editing');
-  const liveSeats=(!editing&&G&&projectsVisible()&&G.ownerProjects)?SEATS.filter(s=>G.ownerProjects[s]&&G.projShown[s]):[];
+  const liveSeats=(!editing&&G&&projectsVisible()&&G.ownerProjects)?SEATS.filter(s=>G.ownerProjects[s]&&G.projShown[s]&&!(G.projHidden&&G.projHidden[s])):[];
   const sig=editing?('edit:'+JSON.stringify(PROJCFG)):(liveSeats.length?('show:'+VIEW+':'+liveSeats.join(',')):'hide');
   if(!editing&&G&&sig===G._projSig)return;
   if(G)G._projSig=sig;
