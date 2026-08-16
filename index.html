@@ -367,6 +367,28 @@ const ORD_TRUMP=['7','8','Q','K','10','A','9','J'];
 const ORD_SEQ=['7','8','9','10','J','Q','K','A'];
 const SUITPAIR={spades:'clubs',clubs:'spades',hearts:'diamonds',diamonds:'hearts'};
 
+// ---------- global error trap: capture real details for debugging on iOS ----------
+window.LAST_ERRORS=JSON.parse(localStorage.getItem('baloot_lasterr')||'[]');
+function trapErr(msg,src,line,col,err){
+  try{
+    const rec={t:new Date().toISOString().slice(5,19),msg:String(msg||'').slice(0,300),
+      src:String(src||'').split('/').pop().slice(0,60),line:line||0,col:col||0,
+      stack:(err&&err.stack?String(err.stack):'').slice(0,600),
+      phase:(typeof G!=='undefined'&&G)?(G.phase+' t'+G.trickNo+' turn:'+G.turn+' trick:'+((G.trick||[]).length)):'-'};
+    window.LAST_ERRORS.push(rec);
+    window.LAST_ERRORS=window.LAST_ERRORS.slice(-6);
+    localStorage.setItem('baloot_lasterr',JSON.stringify(window.LAST_ERRORS));
+  }catch(e){}
+}
+window.addEventListener('error',e=>trapErr(e.message,e.filename,e.lineno,e.colno,e.error));
+window.addEventListener('unhandledrejection',e=>trapErr('promise: '+(e.reason&&e.reason.message||e.reason),'',0,0,e.reason));
+function showLastErr(){
+  const L=window.LAST_ERRORS||[];
+  if(!L.length){toast('لا أخطاء مسجلة ✓','');return;}
+  const txt=L.map(r=>'['+r.t+'] '+r.msg+' @'+r.src+':'+r.line+':'+r.col+' | '+r.phase+(r.stack?'\n'+r.stack:'')).join('\n\n');
+  try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(()=>toast('نُسخ آخر خطأ 📋',L[L.length-1].msg.slice(0,60)));return;}}catch(e){}
+  window.prompt('آخر الأخطاء:',txt);
+}
 let SOUND_ON=true;
 const SAY_KEYS=['أربعمية','خمسين','مية','سرا','أشكل','صن','حكم','ولا','ورق','ثاني','بس'];
 // phonetic spellings tuned for Gulf pronunciation by TTS engines
@@ -623,7 +645,7 @@ function startHand(){
      curBid:null,bidActed:{S:false,W:false,N:false,E:false},
      trick:[],tricksWon:{0:[],1:[]},lastTrickWinner:null,trickNo:1,
      seatProjects:{},declared:{},declaredDone:{},ownerProjects:{},projectWinner:null,projectPoints:0,
-     baloot:{declared:false,team:null},_kq:{},announced:{},projShown:{},arrange:false,manualOrder:false,justDealt:true};
+     baloot:{declared:false,team:null},_kq:{},announced:{},projShown:{},arrange:false,manualOrder:false,justDealt:true,handId:Date.now()};
   if(typeof DBG!=='undefined'){DBG.stack.length=0;DBG.paused=false;DBG.gen=(DBG.gen||0)+1;if(DBG.on)setTimeout(dbgBar,50);}
   const ab=el('arrange-btn');if(ab){ab.textContent='↕ ترتيب';ab.classList.remove('on');}
   renderAll();renderBuyer(true);renderBadges();
@@ -647,7 +669,9 @@ function toast(big,small){const t=el('toast');t.innerHTML=big+(small?`<small>${s
 /* ---------- bidding ---------- */
 function bidStep(){
   if(G.phase!=='bid')return;setActive(G.turn);renderBadges();
-  if(G.turn===VIEW){showBidUI();return;}
+  if(G.turn===VIEW){
+    if(DBG.master){setTimeout(()=>applyBid(VIEW,aiBid(VIEW)),650);return;}
+    showBidUI();return;}
   setTimeout(()=>applyBid(G.turn,aiBid(G.turn)),650);
 }
 function handStrength(seat,t){let p=0,tr=0;for(const c of G.hands[seat]){if(t&&c.s===t){p+=HK_TRUMP[c.r];tr++;}else p+=SUN_VAL[c.r];}return{p,tr};}
@@ -753,7 +777,8 @@ function lockContract(){
   if(b.type==='hokm'&&!b.suit){
     // round-2 hokm won the bidding but the suit was never revealed — resolve it now
     G.turn=b.seat;
-    if(b.seat===VIEW){toast('اختر لون الحكم','');showFinalSuitPicker();}
+    if(b.seat===VIEW&&!DBG.master){toast('اختر لون الحكم','');showFinalSuitPicker();}
+    else if(b.seat===VIEW&&DBG.master){const r0=aiResolveFinal(VIEW);setTimeout(()=>{if(r0.sun)finalizeAsSun();else finalizeHokmSuit(r0.suit);},700);}
     else{const r=aiResolveFinal(b.seat);setTimeout(()=>{if(r.sun)finalizeAsSun();else finalizeHokmSuit(r.suit);},700);}
     return;
   }
@@ -804,6 +829,7 @@ function finishDeal(){
   // who receives the face-up (الأرض): the declarer, OR his partner if the contract is أشكل
   const taker=(G.curBid&&G.curBid.ashkal)?partnerOf(G.declarer):G.declarer;
   G.hands[taker].push(G.buyer);
+  G.floorTo=taker; // everyone saw the floor card and knows who holds it
   const fill={[taker]:2};for(const s of SEATS)if(!(s in fill))fill[s]=3;
   let r=0;for(const seat of G.order)for(let k=0;k<fill[seat];k++)G.hands[seat].push(G.rest[r++]);
   for(const s of SEATS)sortHand(s);
@@ -846,7 +872,7 @@ function findProjects(hand){
 }
 function declarePhase(seat){
   const found=G.seatProjects[seat]||[];
-  if(seat!==VIEW){
+  if(seat!==VIEW||DBG.master){
     // AI announces every project it holds
     G.declared[seat]=found.slice();G.declaredDone[seat]=true;
     setTimeout(playStep,120);
@@ -957,8 +983,13 @@ function playStep(){
   setActive(G.turn);renderBadges();
   if(G.trickNo===1 && !G.declaredDone[G.turn]) return declarePhase(G.turn);
   if(G.turn===VIEW){highlightPlayable();return;}
-  if(DBG.paused)return; // coach mode: wait for manual play or متابعة
-  setTimeout(()=>{if(!DBG.paused)playCard(G.turn,aiPlay(G.turn));},700);
+  if(DBG.paused||DBG.master)return; // coach/master mode: wait for manual play
+  setTimeout(()=>{
+    if(DBG.paused||DBG.master)return;
+    try{playCard(G.turn,aiPlay(G.turn));}
+    catch(e){trapErr('aiTurn: '+e.message,'',0,0,e);
+      try{const l=legalCards(G.turn);if(l.length)playCard(G.turn,l[0]);}catch(e2){trapErr('aiTurn-recovery: '+e2.message,'',0,0,e2);}}
+  },700);
 }
 function playedCards(){const a=[];for(const t of[0,1])a.push(...G.tricksWon[t]);for(const p of G.trick)a.push(p.card);return a;}
 function partnerOf(seat){for(const s of SEATS)if(s!==seat&&TEAM[s]===TEAM[seat])return s;return null;}
@@ -1167,7 +1198,26 @@ function simDeclLeadHokm(st,seat,legal){
         return{c:by[s].find(c=>c.r==='K'),why:'دق برأس التتابع'};
     }
   }
-  const nt=legal.filter(c=>c.s!==ts).sort((a,b)=>val(a)-val(b));
+  {
+    const pSeat=partnerOf(seat);
+    const prP=st.reveal&&st.reveal[pSeat]&&st.reveal[pSeat].suit;
+    if(prP&&prP!==ts){
+      const cs=legal.filter(c=>c.s===prP&&c.s!==ts).sort((a,b)=>ORD_PLAIN.indexOf(a.r)-ORD_PLAIN.indexOf(b.r));
+      if(cs.length)return{c:cs[0],why:'خدمة مشروع الشريك'};
+    }
+    const fl=st.floor;
+    if(fl&&fl.r==='A'&&fl.to===pSeat&&fl.s!==ts){
+      const cs=legal.filter(c=>c.s===fl.s&&c.s!==ts).sort((a,b)=>ORD_PLAIN.indexOf(a.r)-ORD_PLAIN.indexOf(b.r));
+      if(cs.length)return{c:cs[0],why:'تغذية إكة الأرض عند الشريك'};
+    }
+  }
+  const oppProjD=new Set();
+  for(const o of oppSeats(seat)){const rp=st.reveal&&st.reveal[o];if(rp&&rp.suit)oppProjD.add(rp.suit);}
+  if(st.floor&&st.floor.r==='A'&&TEAM[st.floor.to]!==TEAM[seat])oppProjD.add(st.floor.s);
+  let nt=legal.filter(c=>c.s!==ts);
+  const ntSafeD=nt.filter(c=>!oppProjD.has(c.s));
+  if(ntSafeD.length)nt=ntSafeD;
+  nt.sort((a,b)=>val(a)-val(b));
   if(nt.length)return{c:nt[0],why:'حفظ الحكم'};
   legal.sort((a,b)=>val(a)-val(b));return{c:legal[0],why:'أصغر حكم'};}
 function simRuns(hand){const res=[],by={};for(const c of hand)(by[c.s]=by[c.s]||[]).push(c);
@@ -1179,6 +1229,16 @@ function simSunLead(st,seat,legal){
   const val=c=>simVal('sun',null,c);
   const masters=legal.filter(c=>simIsMaster(st,seat,c));
   if(masters.length){sortMastersStrongFirst(masters,'sun',null,val);return{c:masters[0],why:'صرف ورقة آكلة (الأكبر أولاً)'};}
+  // لا ماستر: خدمة مشروع/إكة أرض الشريك، وتجنّب ما عند الخصم
+  {
+    const pSeat=partnerOf(seat);
+    const prP=st.reveal&&st.reveal[pSeat]&&st.reveal[pSeat].suit;
+    if(prP){const cs=legal.filter(c=>c.s===prP).sort((a,b)=>ORD_PLAIN.indexOf(a.r)-ORD_PLAIN.indexOf(b.r));
+      if(cs.length)return{c:cs[0],why:'خدمة مشروع الشريك'};}
+    const fl=st.floor;
+    if(fl&&fl.r==='A'&&fl.to===pSeat){const cs=legal.filter(c=>c.s===fl.s).sort((a,b)=>ORD_PLAIN.indexOf(a.r)-ORD_PLAIN.indexOf(b.r));
+      if(cs.length)return{c:cs[0],why:'تغذية إكة الأرض عند الشريك'};}
+  }
   const seen=simSeenAll(st);let best=null;
   for(const run of simRuns(st.hands[seat])){
     const su=run.cards[0].s;
@@ -1264,12 +1324,32 @@ function simPolicy(st,seat){
       }
     }
     if(masters.length){sortMastersStrongFirst(masters,st.mode,st.trump,val);return{c:masters[0],why:'صرف ورقة آكلة (الأكبر أولاً)'};}
+    // لا ماستر عندي: أخدم مشروع شريكي أو إكة الأرض عنده، وأتجنّبهما عند الخصم
+    {
+      const pSeat=partnerOf(seat);
+      const prP=st.reveal&&st.reveal[pSeat]&&st.reveal[pSeat].suit;
+      if(prP&&(st.mode!=='hokm'||prP!==st.trump)){
+        const cs=legal.filter(c=>c.s===prP&&!isT(c)).sort((a,b)=>ORD_PLAIN.indexOf(a.r)-ORD_PLAIN.indexOf(b.r));
+        if(cs.length)return{c:cs[0],why:'خدمة مشروع الشريك'};
+      }
+      const fl=st.floor;
+      if(fl&&fl.r==='A'&&fl.to===pSeat&&(st.mode!=='hokm'||fl.s!==st.trump)){
+        const cs=legal.filter(c=>c.s===fl.s&&!isT(c)).sort((a,b)=>ORD_PLAIN.indexOf(a.r)-ORD_PLAIN.indexOf(b.r));
+        if(cs.length)return{c:cs[0],why:'تغذية إكة الأرض عند الشريك'};
+      }
+    }
+    const oppProj=new Set();
+    for(const o of oppSeats(seat)){const rp=st.reveal&&st.reveal[o];if(rp&&rp.suit)oppProj.add(rp.suit);}
+    if(st.floor&&st.floor.r==='A'&&TEAM[st.floor.to]!==TEAM[seat])oppProj.add(st.floor.s);
     // otherwise a low non-trump; prefer SHORT suits, then cards closest to mastery
     const slen=s=>st.hands[seat].filter(x=>x.s===s).length;
     const outAbove=c=>{const mine=new Set(st.hands[seat].filter(x=>x.s===c.s).map(x=>x.r));
       let n=0;for(const r of RANKS){if(r===c.r||mine.has(r)||seen.has(c.s+r))continue;
         if(ORD_PLAIN.indexOf(r)>ORD_PLAIN.indexOf(c.r))n++;}return n;};
-    const nt=legal.filter(c=>!isT(c)).sort((a,b)=>val(a)-val(b)||slen(a.s)-slen(b.s)||outAbove(a)-outAbove(b)||ORD_PLAIN.indexOf(a.r)-ORD_PLAIN.indexOf(b.r));
+    let nt=legal.filter(c=>!isT(c));
+    const ntSafe=nt.filter(c=>!oppProj.has(c.s));
+    if(ntSafe.length)nt=ntSafe; // لا تطعم لون مشروع الخصم إن وُجد بديل
+    nt.sort((a,b)=>val(a)-val(b)||slen(a.s)-slen(b.s)||outAbove(a)-outAbove(b)||ORD_PLAIN.indexOf(a.r)-ORD_PLAIN.indexOf(b.r));
     if(nt.length)return{c:nt[0],why:'أصغر ورقة (تجنّب حكم الخصم)'};
     legal.sort((a,b)=>val(a)-val(b));return{c:legal[0],why:'أصغر ورقة'};
   }
@@ -1382,9 +1462,15 @@ function simPolicy(st,seat){
           const big=myTr.slice().sort((a,b)=>ORD_TRUMP.indexOf(b.r)-ORD_TRUMP.indexOf(a.r))[0];
           return{c:big,why:'تربيع خلف سحب الشريك'};
         }
-        // partner's trump is the boss → load my fattest trump under it
-        const load=myTr.slice().sort((a,b)=>val(b)-val(a)||ORD_TRUMP.indexOf(b.r)-ORD_TRUMP.indexOf(a.r));
-        return{c:load[0],why:'تحميل على سحب الشريك'};
+        // partner's trump is the boss → load my fattest trump under it,
+        // but NEVER my own boss trump: it wins a whole extra trick later
+        const loadable=myTr.filter(c=>!myMaster(c));
+        if(loadable.length){
+          loadable.sort((a,b)=>val(b)-val(a)||ORD_TRUMP.indexOf(b.r)-ORD_TRUMP.indexOf(a.r));
+          return{c:loadable[0],why:'تحميل على سحب الشريك'};
+        }
+        const small=myTr.slice().sort((a,b)=>ORD_TRUMP.indexOf(a.r)-ORD_TRUMP.indexOf(b.r));
+        return{c:small[0],why:'حفظ البوس خلف الشريك'};
       }
     }
     const safeWin=(pos===3)||(pMaster&&!ruffPossible(lead));
@@ -1403,7 +1489,10 @@ function simPolicy(st,seat){
         // forced to follow: load the fattest allowed card of the suit
         // when I'm LAST, partner's win is certain → bank the fattest card, Ace included
         if(pos===3){
-          const all=legal.slice().sort((a,b)=>val(b)-val(a)||ORD_PLAIN.indexOf(b.r)-ORD_PLAIN.indexOf(a.r));
+          let all=legal.slice();
+          const keepBoss=all.filter(c=>!(isT(c)&&myMaster(c)));  // boss trump wins its own trick later
+          if(keepBoss.length)all=keepBoss;
+          all.sort((a,b)=>val(b)-val(a)||ORD_PLAIN.indexOf(b.r)-ORD_PLAIN.indexOf(a.r));
           return{c:all[0],why:'تحميل نقاط للشريك'};
         }
         let pool=legal.filter(c=>!isT(c)&&aceDumpAllowed(c));
@@ -1445,7 +1534,20 @@ function simPolicy(st,seat){
             return{c:cand[0],why:'تحميل بإشارة'};}
         }
       }
-      // 3) خردة مدروسة
+      // 3) تحميل قيمة: بنك Q/K الميتة على لمّة الشريك المضمونة
+      //    Q من لون قصير (≤3)، K من لون قصير جدًا (≤2) — الطوال تُحفظ للترقية (تصحيح d3)
+      {
+        const slenV=s=>st.hands[seat].filter(x=>x.s===s).length;
+        const cand=legal.filter(c=>{
+          if(isT(c)||myMaster(c)||inSeqRun(c))return false;
+          if(c.r==='Q')return slenV(c.s)<=3;
+          if(c.r==='K')return slenV(c.s)<=2;
+          return false;
+        });
+        if(cand.length){cand.sort((a,b)=>val(b)-val(a)||ORD_PLAIN.indexOf(b.r)-ORD_PLAIN.indexOf(a.r));
+          return{c:cand[0],why:'تحميل نقاط للشريك'};}
+      }
+      // 4) خردة مدروسة
       return{c:junkPick(legal),why:'رمية محايدة'};
     }
     // partner ahead but NOT safe: take over with my own in-suit master if I have one
@@ -1458,6 +1560,13 @@ function simPolicy(st,seat){
     return{c:lowestSafe(legal),why:'الشريك متقدم — رمية صغيرة'};
   }
   // opponent currently winning -------------------------------------------------
+  // قص اللمّة الثمينة: بأصغر حكم مضمون (لا يعلوه شيء)، وإلا بأكبر حكمي؛ الرخيصة بأصغر قص
+  if(st.mode==='hokm'&&voidLead&&legal.length&&legal.every(c=>c.s===st.trump)&&pos<3&&trickPts>=10){
+    const byT=legal.slice().sort((a,b)=>ORD_TRUMP.indexOf(a.r)-ORD_TRUMP.indexOf(b.r));
+    const safe=byT.filter(c=>outHigher(c)===0);
+    if(safe.length)return{c:safe[0],why:'قص مضمون للمّة الثمينة'};
+    return{c:byT[byT.length-1],why:'قص كبير للمّة الثمينة'};
+  }
   const wins=legal.filter(c=>simStr(st.mode,st.trump,lead,c)>wstr);
   if(wins.length){
     wins.sort((a,b)=>simStr(st.mode,st.trump,lead,a)-simStr(st.mode,st.trump,lead,b));
@@ -1605,10 +1714,10 @@ function mcPick(info,opts){
         void:{S:Object.assign({},info.void.S),W:Object.assign({},info.void.W),N:Object.assign({},info.void.N),E:Object.assign({},info.void.E)},
         signal:Object.assign({},info.signal),
         reveal:(function(r){const o={};for(const s in r)o[s]={suit:r[s].suit,pts:r[s].pts};return o;})(info.reveal||{}),
-        pts:{0:0,1:0},lastWin:null};
+        pts:{0:0,1:0},lastWin:null,floor:info.floor||null};
       stp.hands[info.seat]=info.hand.map(c=>({s:c.s,r:c.r}));
       const plan=simDeclLeadHokm(stp,info.seat,legal.map(c=>({s:c.s,r:c.r})));
-      if(plan&&plan.c&&(plan.c.s===info.trump||plan.why==='حفظ الحكم'||plan.why==='دق برأس التتابع'||plan.why==='تربيع بالبوس'||plan.why==='تربيع بأصغر حكم لإطاحة الولد'||plan.why==='مواصلة التربيع بأصغر حكم')){
+      if(plan&&plan.c&&(plan.c.s===info.trump||plan.why==='حفظ الحكم'||plan.why==='دق برأس التتابع'||plan.why==='خدمة مشروع الشريك'||plan.why==='تغذية إكة الأرض عند الشريك'||plan.why==='تربيع بالبوس'||plan.why==='تربيع بأصغر حكم لإطاحة الولد'||plan.why==='مواصلة التربيع بأصغر حكم')){
         const pi=legal.findIndex(c=>c.s===plan.c.s&&c.r===plan.c.r);
         if(pi>=0)return{card:legal[pi],why:plan.why,ev:null,n:0};
       }
@@ -1622,7 +1731,7 @@ function mcPick(info,opts){
         void:{S:Object.assign({},info.void.S),W:Object.assign({},info.void.W),N:Object.assign({},info.void.N),E:Object.assign({},info.void.E)},
         signal:Object.assign({},info.signal),
         reveal:(function(r){const o={};for(const s in r)o[s]={suit:r[s].suit,pts:r[s].pts};return o;})(info.reveal||{}),
-        pts:{0:0,1:0},lastWin:null};
+        pts:{0:0,1:0},lastWin:null,floor:info.floor||null};
       stp.hands[info.seat]=info.hand.map(c=>({s:c.s,r:c.r}));
       const plan=simPolicy(stp,info.seat);
       if(plan&&plan.c){ // defenders' opening leads follow the table plan, always
@@ -1640,11 +1749,11 @@ function mcPick(info,opts){
         void:{S:Object.assign({},info.void.S),W:Object.assign({},info.void.W),N:Object.assign({},info.void.N),E:Object.assign({},info.void.E)},
         signal:Object.assign({},info.signal),
         reveal:(function(r){const o={};for(const s in r)o[s]={suit:r[s].suit,pts:r[s].pts};return o;})(info.reveal||{}),
-        pts:{0:0,1:0},lastWin:null};
+        pts:{0:0,1:0},lastWin:null,floor:info.floor||null};
       stf.hands[info.seat]=info.hand.map(c=>({s:c.s,r:c.r}));
       const plan=simPolicy(stf,info.seat);
       const CONV=['الشريك متقدم — رمية صغيرة','إشارة للشريك','تربيع خلف سحب الشريك','تحميل على سحب الشريك',
-        'تحميل نقاط للشريك','تهريب الإكة للشريك (آمن)','رمية محايدة','أخذ بالماستر لضمان اللمة','يد ثانية صغيرة','تحميل بإشارة','رمي أصغر ورقة','تتبّع بأصغر ورقة','تسليك سرا الشريك'];
+        'تحميل نقاط للشريك','تهريب الإكة للشريك (آمن)','رمية محايدة','أخذ بالماستر لضمان اللمة','يد ثانية صغيرة','تحميل بإشارة','رمي أصغر ورقة','تتبّع بأصغر ورقة','تسليك سرا الشريك','حفظ البوس خلف الشريك','قص مضمون للمّة الثمينة','قص كبير للمّة الثمينة','تحميل نقاط للشريك'];
       if(plan&&plan.c&&CONV.indexOf(plan.why)>=0){
         const pi=legal.findIndex(c=>c.s===plan.c.s&&c.r===plan.c.r);
         if(pi>=0)return{card:legal[pi],why:plan.why,ev:null,n:0};
@@ -1740,7 +1849,8 @@ function buildInfo(seat){
     if(s!==seat&&G.projShown[s]&&G.ownerProjects[s]){const it=G.ownerProjects[s];
       if(it&&it.cards&&it.cards.length>=3&&it.cards.every(c=>c.s===it.cards[0].s))
         reveal[s]={suit:it.cards[0].s,pts:it.pts||0,cards:it.cards.map(c=>({s:c.s,r:c.r}))};}}
-  return{seat,mode:G.mode,trump:G.mode==='hokm'?G.trump:null,declarer:G.declarer,turn:G.turn,trickNo:G.trickNo,
+  const floor=(G.buyer&&G.floorTo)?{s:G.buyer.s,r:G.buyer.r,to:G.floorTo}:null;
+  return{seat,mode:G.mode,trump:G.mode==='hokm'?G.trump:null,declarer:G.declarer,turn:G.turn,trickNo:G.trickNo,floor,
     hand:G.hands[seat].map(c=>({s:c.s,r:c.r})),
     counts:{S:G.hands.S.length,W:G.hands.W.length,N:G.hands.N.length,E:G.hands.E.length},
     trick:G.trick.map(p=>({seat:p.seat,card:{s:p.card.s,r:p.card.r}})),
@@ -1779,6 +1889,7 @@ function heuristicPlay(seat){
 }
 function playCard(seat,card){
   dbgSnapshot();
+  if(DBG.master&&G.phase==='play')masterLog(seat,card);
   // safety: never freeze — if the card isn't in hand, pick a legal substitute
   if(!card||!G.hands[seat].some(c=>c.s===card.s&&c.r===card.r)){
     const lg=legalCards(seat);if(!lg.length)return;card=lg[0];
@@ -1807,17 +1918,23 @@ function checkBaloot(seat,card){
   if(G._kq[seat]===2&&!G.baloot.declared){G.baloot.declared=true;G.baloot.team=TEAM[seat];bubble(seat,'بلوت!',1200);setTimeout(()=>toast('بلوت','+٢٠'),300);}
 }
 function resolveTrick(){
+  if(!G.trick.length)return;
   const lead=G.trick[0].card.s;let ws=null,wstr=-1;
   for(const p of G.trick){const st=rankStrength(p.card,lead);if(st>wstr){wstr=st;ws=p.seat;}}
   G.tricksWon[TEAM[ws]].push(...G.trick.map(p=>p.card));G.lastTrickWinner=ws;
-  if(G.history)G.history.push({t:G.trickNo,win:ws});
-  bubble(ws,'✓',650);
-  collectTrick(ws,()=>{
-    clearPlays();G.trick=[];G.turn=ws;
+  try{if(G.history)G.history.push({t:G.trickNo,win:ws});bubble(ws,'✓',650);}catch(e){trapErr('resolve-fx: '+e.message,'',0,0,e);}
+  const cont=()=>{
+    try{clearPlays();}catch(e){}
+    G.trick=[];G.turn=ws;
     const rem=G.hands.S.length+G.hands.E.length+G.hands.N.length+G.hands.W.length;
     if(rem===0){setTimeout(scoreHand,450);return;}
-    G.trickNo++;if(G.trickNo===2)computeProjectWinner();renderBadges();setTimeout(playStep,260);
-  });
+    G.trickNo++;
+    try{if(G.trickNo===2)computeProjectWinner();}catch(e){trapErr('projWinner: '+e.message,'',0,0,e);}
+    try{renderBadges();}catch(e){}
+    setTimeout(playStep,260);
+  };
+  try{collectTrick(ws,cont);}
+  catch(e){trapErr('collect: '+e.message,'',0,0,e);cont();}
 }
 function collectTrick(ws,done){
   const t=el('seat-'+P(ws)).getBoundingClientRect();
@@ -2023,17 +2140,23 @@ function renderPlay(seat,card){const s=el('play-'+P(seat));s.innerHTML='';s.appe
 function clearPlays(){for(const s of SEATS)el('play-'+s).innerHTML='';}
 function renderFans(){
   const W0=40,H0=60;
-  for(const x of['N','E','W'])el('fan-'+x).innerHTML='';
+  for(const x of['N','E','W']){try{el('fan-'+x).innerHTML='';}catch(e){}}
   for(const s of SEATS){
     if(s===VIEW)continue;
+    try{
     const f=el('fan-'+P(s));f.innerHTML='';f.style.direction='ltr';f.style.position='relative';
+    // fixed footprint (8-card size) so the fan NEVER moves as cards run out
+    const FW=W0+14;
+    f.style.width=FW+'px';f.style.height=H0+'px';f.style.flex='none';
     const n=G.hands[s].length, center=(n-1)/2;
     const step=n>1?Math.min(11,64/(n-1)):0;
     for(let i=0;i<n;i++){
       const card=G.hands[s][i];
       const d=cardEl(DBG.reveal?card:{},DBG.reveal);
       d.style.width=W0+'px';d.style.height=H0+'px';
-      d.style.marginLeft=i===0?'0':(-(W0-2))+'px';
+      d.style.position='absolute';
+      d.style.left=((FW-W0)/2+(i-center)*2)+'px';
+      d.style.top='0';
       d.style.transformOrigin='50% 185%';
       d.style.transform='rotate('+((i-center)*step).toFixed(2)+'deg)';
       d.style.zIndex=i;
@@ -2043,6 +2166,7 @@ function renderFans(){
       }
       f.appendChild(d);
     }
+    }catch(e){trapErr('renderFan '+s+': '+e.message,'',0,0,e);}
   }
 }
 
@@ -2107,7 +2231,32 @@ function updateModePill(){/* score box session already static */}
 /* ---------- generic ---------- */
 function updateScores(){el('score-us').textContent=MATCH.us;el('score-them').textContent=MATCH.them;}
 /* ---------- coach / debug mode (كشف · تراجع · تصحيح) ---------- */
-const DBG={on:false,reveal:false,paused:false,stack:[],max:60};
+const DBG={on:false,reveal:false,paused:false,master:false,stack:[],max:60};
+window.MASTERLOG=JSON.parse(localStorage.getItem('baloot_masterlog')||'[]');
+function masterLog(seat,card){
+  try{
+    let ai=null;
+    try{const r=mcPick(buildInfo(seat));if(r&&r.card)ai=r.card;}catch(e){}
+    const decl={};for(const s of SEATS){const l=(typeof declaredList==='function')?declaredList(s):[];if(l.length)decl[s]=l.map(x=>x.name);}
+    const rec={h:G.handId||0,t:G.trickNo,seat,mode:G.mode,trump:G.trump,declarer:G.declarer,
+      hand:G.hands[seat].map(c=>c.s+c.r),
+      table:G.trick.map(p=>p.seat+':'+p.card.s+p.card.r),
+      played:card.s+card.r,
+      ai:ai?(ai.s+ai.r):null,
+      same:!!(ai&&ai.s===card.s&&ai.r===card.r),
+      decl};
+    window.MASTERLOG.push(rec);
+    try{localStorage.setItem('baloot_masterlog',JSON.stringify(window.MASTERLOG.slice(-2000)));}catch(e){}
+    try{if(DBG.on)dbgBar();}catch(e){}
+  }catch(e){}
+}
+function masterCopy(){
+  const data=JSON.stringify(window.MASTERLOG,null,1);
+  const ok=()=>toast('نُسخ سجل الأستاذ 📤',window.MASTERLOG.length+' لعبة');
+  try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(data).then(ok).catch(()=>window.prompt('انسخ السجل:',data));return;}}catch(e){}
+  window.prompt('انسخ السجل:',data);
+}
+function masterClear(){window.MASTERLOG=[];try{localStorage.removeItem('baloot_masterlog');}catch(e){}toast('مُسح سجل الأستاذ','');}
 window.CORRECTIONS=JSON.parse(localStorage.getItem('baloot_corrections')||'[]');
 function dbgSnapshot(){
   try{
@@ -2161,9 +2310,11 @@ function dbgPlayFor(seat,card){
     toast('حركة غير قانونية ✋',lead?('لازم تتبع '+SUIT_AR[lead]):'غير مسموح');
     return;
   }
-  let ai=null;try{const r=mcPick(buildInfo(seat));if(r&&r.card)ai=r.card;}catch(e){}
-  if(!ai){try{ai=heuristicPlay(seat);}catch(e){}}
-  dbgLogCorrection(seat,card,ai);
+  if(!DBG.master){
+    let ai=null;try{const r=mcPick(buildInfo(seat));if(r&&r.card)ai=r.card;}catch(e){}
+    if(!ai){try{ai=heuristicPlay(seat);}catch(e){}}
+    dbgLogCorrection(seat,card,ai);
+  }
   DBG.allowOnce=true;
   playCard(seat,card);
   DBG.allowOnce=false;
@@ -2215,11 +2366,21 @@ function dbgBar(){
   const mk=(txt,fn)=>{const x=document.createElement('div');
     x.style.cssText='padding:6px 10px;border-radius:9px;background:#134a30;color:#ffd94a;font-size:13px;font-weight:700;cursor:pointer;user-select:none;';
     x.textContent=txt;x.onclick=fn;b.appendChild(x);};
+  mk(DBG.master?'🎓 أستاذ ✓':'🎓 أستاذ',()=>{
+    DBG.master=!DBG.master;
+    if(DBG.master){DBG.reveal=true;toast('وضع الأستاذ 🎓','أنت تلعب الأربعة — كل لعبة تُسجَّل');}
+    else toast('إيقاف وضع الأستاذ','');
+    renderFans();dbgBar();
+    if(!DBG.master&&G.phase==='play')playStep();
+  });
   mk(DBG.reveal?'🙈 إخفاء':'👁 كشف',()=>{DBG.reveal=!DBG.reveal;renderFans();dbgBar();});
   mk('↩ تراجع',dbgUndo);
   if(DBG.paused)mk('▶ متابعة',dbgResume);
   mk('📋 نسخ ('+window.CORRECTIONS.length+')',dbgCopy);
+  mk('📤 ('+window.MASTERLOG.length+')',masterCopy);
   mk('🗑',dbgClear);
+  mk('🧹',masterClear);
+  mk('⚠',showLastErr);
 }
 function renderAll(){
   updateScores();clearPlays();renderFans();renderHand();
