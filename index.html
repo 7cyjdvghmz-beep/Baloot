@@ -174,7 +174,7 @@
   #hand-wrap{padding:4px 4px 8px;position:relative;z-index:3;}
   .proj{pointer-events:none;}
   body.editing .proj{pointer-events:auto;}
-  .seat .ailvl{font-size:8.5px;font-weight:800;color:#ffd97a;background:rgba(0,0,0,.42);padding:1px 7px;border-radius:7px;margin-top:1px;letter-spacing:.2px;}
+  .seat .ailvl{font-size:9.5px;font-weight:900;color:#fff2c4;background:rgba(150,40,20,.85);padding:2px 8px;border-radius:8px;margin-top:1px;letter-spacing:.2px;box-shadow:0 1px 3px rgba(0,0,0,.3);}
   #handname{display:flex;justify-content:center;align-items:center;gap:8px;margin-bottom:2px;}
   .mini-btn{background:linear-gradient(180deg,#e9ddc2,#cdbb92);color:#2c2113;border:1px solid #a7935f;
     border-radius:9px;font-size:11px;font-weight:800;padding:4px 11px;box-shadow:0 2px 4px rgba(0,0,0,.25);}
@@ -238,7 +238,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v111</div>
+  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v114</div>
 <div id="topbar">
     <div class="tb">⋯<small>المزيد</small></div>
     <div class="tb" id="dbg-btn">🐞<small>تدقيق</small></div>
@@ -767,7 +767,7 @@ function applyBid(seat,bid){
   if(bid.type==='double'){
     if(!canDoubleNow(seat))return applyBid(seat,{type:'pass'});
     G.dbl={level:'double',by:seat,byTeam:TEAM[seat],closed:false};
-    G.phase='dbl';                              // يمنع bidStep من إعادة رسم أزرار المزايدة فوقنا
+    G.phase='dbl';try{renderBadges();}catch(e){}                              // يمنع bidStep من إعادة رسم أزرار المزايدة فوقنا
     clearActions();
     bubble(seat,'دبل',1300);try{playClips(['double']);}catch(e){}
     setTimeout(()=>dblAfterDeclare(),900);
@@ -801,12 +801,12 @@ function dblAfterDeclare(){
   const who=d.by;
   if(who===VIEW){
     clearActions();
-    actBtn('مقفل','gold',()=>{G.dbl.closed=true;clearActions();bubble(who,'مقفل',1100);setTimeout(dblAskRaise,700);});
-    actBtn('مفتوح','',()=>{G.dbl.closed=false;clearActions();bubble(who,'مفتوح',1100);setTimeout(dblAskRaise,700);});
+    actBtn('مقفل','gold',()=>{G.dbl.closed=true;clearActions();bubble(who,'مقفل',1100);try{renderBadges();}catch(e){}setTimeout(dblAskRaise,700);});
+    actBtn('مفتوح','',()=>{G.dbl.closed=false;clearActions();bubble(who,'مفتوح',1100);try{renderBadges();}catch(e){}setTimeout(dblAskRaise,700);});
     toast('نوع اللعب','مقفل = ممنوع التربيع');
   }else{
     const closed=aiClosedChoice(who);
-    G.dbl.closed=closed;bubble(who,closed?'مقفل':'مفتوح',1100);
+    G.dbl.closed=closed;bubble(who,closed?'مقفل':'مفتوح',1100);try{renderBadges();}catch(e){}
     setTimeout(dblAskRaise,900);
   }
 }
@@ -827,7 +827,7 @@ function dblAskRaise(){
   }
 }
 function dblRaise(lvl,who){
-  G.dbl.level=lvl;dblSay(who,lvl);
+  G.dbl.level=lvl;dblSay(who,lvl);try{renderBadges();}catch(e){}
   if(lvl==='gahwa'){setTimeout(dblDone,1000);return;}
   if(lvl==='four'){setTimeout(dblAfterDeclare,900);return;}   // الأربعة تعيد خيار مقفل/مفتوح للمدبِّل
   setTimeout(dblAskRaise,900);                                 // الثلاثة مفتوحة دائمًا
@@ -977,8 +977,17 @@ function declarePhase(seat){
   showProjectChoice();highlightPlayable();
 }
 const DBL_MULT={double:2,three:3,four:4,gahwa:4};
-const DBL_AR={double:'دبل',three:'ثلاثة',four:'أربعة',gahwa:'قهوة'};
+const DBL_AR={double:'دبل',three:'ثري',four:'فور',gahwa:'قهوة'};
 const DBL_CLIP={double:'double',three:'three',four:'four',gahwa:'gahwa'};
+// شارة حالة الدبل: تبقى ظاهرة طوال اليد المدبولة
+function dblStatusText(){
+  try{
+    const d=G&&G.dbl;if(!d||!d.level)return '';
+    let t=DBL_AR[d.level];
+    if(d.level!=='gahwa'&&(G.mode==='hokm'||(G.curBid&&G.curBid.type==='hokm')))t+=' · '+(d.closed?'مقفل':'مفتوح');
+    return t;
+  }catch(e){return '';}
+}
 function teamScore(t){return t===0?MATCH.us:MATCH.them;}
 // من يحق له الدبل: الحكم دائمًا، والصن فقط إذا كان المشتري ≥١٠٠ والمدبِّل تحتها
 function canDoubleNow(seat){
@@ -2130,13 +2139,18 @@ function scoreHand(){
   const projU={0:0,1:0};
   if(G.projectWinner!==null&&G.tricksWon[G.projectWinner].length>0)projU[G.projectWinner]=Math.round(G.projectPoints/10);
   const bal={0:0,1:0};if(G.baloot.declared)bal[G.baloot.team]+=2;
+  // الأبناط الحقيقية = الأكلات + الأرض + المشاريع + البلوت (بالنقاط)
+  const projPts={0:0,1:0};
+  if(G.projectWinner!==null&&G.tricksWon[G.projectWinner].length>0)projPts[G.projectWinner]=G.projectPoints;
+  const balPts={0:0,1:0};if(G.baloot.declared)balPts[G.baloot.team]=20;
+  const tot={0:raw[0]+projPts[0]+balPts[0],1:raw[1]+projPts[1]+balPts[1]};
   const d=TEAM[G.declarer],o=d^1;let board={0:0,1:0};
   const totD=units[d]+projU[d]+bal[d], totO=units[o]+projU[o]+bal[o];
   const DB=(G.dbl&&G.dbl.level)?G.dbl:null;
   if(DB){
     // مدبولة: الفائز بالأبناط يأخذ كل شيء مضاعفًا، والخاسر صفر. التعادل يُخسِر المدبِّل.
     const mult=DBL_MULT[DB.level]||2;
-    let w = raw[0]>raw[1]?0 : raw[1]>raw[0]?1 : (DB.byTeam^1);
+    let w = tot[0]>tot[1]?0 : tot[1]>tot[0]?1 : (DB.byTeam^1);
     board[w]=POOL*mult + projU[w]*mult + bal[w];   // المشاريع تُضاعف، البلوت لا يُضاعف
     board[w^1]=0;
     G._dblResult={mult,w,level:DB.level};
@@ -2151,7 +2165,7 @@ function scoreHand(){
   }else{board[0]=units[0]+projU[0]+bal[0];board[1]=units[1]+projU[1]+bal[1];}
   MATCH.us+=board[0];MATCH.them+=board[1];updateScores();
   const baytah=(totD<=totO);
-  setTimeout(()=>showHandResult(raw,units,projU,bal,board,{eats,landTeam,baytah}),700);
+  setTimeout(()=>showHandResult(raw,units,projU,bal,board,{eats,landTeam,baytah,tot,projPts,balPts}),700);
 }
 function showHandResult(raw,units,projU,bal,board,extra){
   extra=extra||{};
@@ -2181,7 +2195,8 @@ function showHandResult(raw,units,projU,bal,board,extra){
       <td class="num">${pw===0?G.projectPoints:''}</td><td class="num">${pw===1?G.projectPoints:''}</td></tr>`;
   }
   if(bal[0]||bal[1])rows+=row('بلوت',bal[0]?20:'',bal[1]?20:'');
-  rows+=row('الأبناط',raw[0],raw[1],'sumrow');
+  const tt=extra.tot||raw;
+  rows+=row('الأبناط',tt[0],tt[1],'sumrow');
   el('sheet').innerHTML=`
     <style>
       .rsum{width:100%;border-collapse:collapse;font-family:inherit}
@@ -2612,8 +2627,9 @@ function renderAll(){
     const elS=el('seat-'+P(s));
     elS.querySelector('[data-nm]').textContent=PLATE[s].nm;
     let lv=elS.querySelector('.ailvl');
-    if(s===VIEW){if(lv)lv.remove();}
-    else{if(!lv){lv=document.createElement('div');lv.className='ailvl';elS.appendChild(lv);}lv.textContent='م'+AI_LEVEL.n+' · '+AI_LEVEL.label;}
+    const dtxt=dblStatusText();
+    if(!dtxt){if(lv)lv.remove();}
+    else{if(!lv){lv=document.createElement('div');lv.className='ailvl';elS.appendChild(lv);}lv.textContent=dtxt;}
   }
   const hn=el('handname');if(hn){const nm=hn.querySelector('.nm');if(nm)nm.textContent=PLATE[VIEW].nm;}
 }
