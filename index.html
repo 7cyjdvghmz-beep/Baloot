@@ -238,7 +238,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v106</div>
+  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v111</div>
 <div id="topbar">
     <div class="tb">⋯<small>المزيد</small></div>
     <div class="tb" id="dbg-btn">🐞<small>تدقيق</small></div>
@@ -646,7 +646,8 @@ function startHand(){
      curBid:null,bidActed:{S:false,W:false,N:false,E:false},
      trick:[],tricksWon:{0:[],1:[]},lastTrickWinner:null,trickNo:1,
      seatProjects:{},declared:{},declaredDone:{},ownerProjects:{},projectWinner:null,projectPoints:0,
-     baloot:{declared:false,team:null},_kq:{},announced:{},projShown:{},projHidden:{},arrange:false,manualOrder:false,justDealt:true,handId:Date.now()};
+     baloot:{declared:false,team:null},_kq:{},announced:{},projShown:{},projHidden:{},
+     dbl:{level:null,by:null,byTeam:null,closed:false},_dblResult:null,arrange:false,manualOrder:false,justDealt:true,handId:Date.now()};
   if(typeof DBG!=='undefined'){DBG.stack.length=0;DBG.paused=false;DBG.gen=(DBG.gen||0)+1;if(DBG.on)setTimeout(dbgBar,50);}
   const ab=el('arrange-btn');if(ab){ab.textContent='↕ ترتيب';ab.classList.remove('on');}
   renderAll();renderBuyer(true);renderBadges();
@@ -681,6 +682,13 @@ function aiBid(seat){
   const sn=sunStrength(seat);
   const cur=G.curBid, curRank=bidRank(cur);
   if(cur&&cur.seat===seat)return{type:'pass'};
+  // الدبل: يد دفاعية قوية أمام عقد الخصم
+  if(canDoubleNow(seat)){
+    const t=(cur.type==='hokm')?cur.suit:null;
+    let pts=0,tr=0;
+    for(const c of G.hands[seat]){if(t&&c.s===t){pts+=HK_TRUMP[c.r];tr++;}else pts+=SUN_VAL[c.r];}
+    if(pts>=32&&(!t||tr>=2))return{type:'double'};
+  }
   // candidate hokm suit: round1 only the buyer-card suit; round2 any suit (best by heuristic)
   let bestSuit=null,bp=-1,btr=0;
   const suitPool=(G.bidRound===1)?[G.buyer.s]:SUITS;
@@ -756,6 +764,15 @@ function applyBid(seat,bid){
     G.turn=nextSeat(G.turn);setTimeout(bidStep,300);
     return;
   }
+  if(bid.type==='double'){
+    if(!canDoubleNow(seat))return applyBid(seat,{type:'pass'});
+    G.dbl={level:'double',by:seat,byTeam:TEAM[seat],closed:false};
+    G.phase='dbl';                              // يمنع bidStep من إعادة رسم أزرار المزايدة فوقنا
+    clearActions();
+    bubble(seat,'دبل',1300);try{playClips(['double']);}catch(e){}
+    setTimeout(()=>dblAfterDeclare(),900);
+    return;
+  }
   // a positive bid (sun / hokm / ashkal). Must outrank the standing contract.
   if(bidRank(bid)<=bidRank(G.curBid)){ // illegal raise -> treat as pass (safety)
     return applyBid(seat,{type:'pass'});
@@ -772,6 +789,82 @@ function applyBid(seat,bid){
   else label=(G.bidRound===2?'حكم ثاني ':'حكم ')+SUIT_AR[bid.suit];
   bubble(seat,label,1300);
   G.turn=nextSeat(seat);setTimeout(bidStep,500);
+}
+/* ---------- سلسلة الدبل: مقفل/مفتوح ← ثلاثة ← أربعة ← قهوة ---------- */
+function buyerSeat(){const b=G.curBid;return b.ashkal?partnerOf(b.seat):b.seat;}
+function dblSay(seat,lvl){bubble(seat,DBL_AR[lvl],1300);try{playClips([DBL_CLIP[lvl]]);}catch(e){}}
+function dblAfterDeclare(){
+  // بعد «دبل» أو «أربعة»: المدبِّل يختار مقفل/مفتوح (الحكم فقط)
+  const d=G.dbl;
+  if(G.curBid.type!=='hokm')return dblAskRaise();   // الصن بلا مقفل/مفتوح
+  if(d.level==='three')return dblAskRaise();
+  const who=d.by;
+  if(who===VIEW){
+    clearActions();
+    actBtn('مقفل','gold',()=>{G.dbl.closed=true;clearActions();bubble(who,'مقفل',1100);setTimeout(dblAskRaise,700);});
+    actBtn('مفتوح','',()=>{G.dbl.closed=false;clearActions();bubble(who,'مفتوح',1100);setTimeout(dblAskRaise,700);});
+    toast('نوع اللعب','مقفل = ممنوع التربيع');
+  }else{
+    const closed=aiClosedChoice(who);
+    G.dbl.closed=closed;bubble(who,closed?'مقفل':'مفتوح',1100);
+    setTimeout(dblAskRaise,900);
+  }
+}
+function dblAskRaise(){
+  // من يزايد بعد المستوى الحالي؟ التحدي بين المشتري والمدبِّل حصرًا
+  const d=G.dbl,buyer=buyerSeat();
+  const next={double:'three',three:'four',four:'gahwa'}[d.level];
+  if(!next)return dblDone();
+  const who=(next==='three'||next==='gahwa')?buyer:d.by;   // ثلاثة وقهوة للمشتري، أربعة للمدبِّل
+  if(who===VIEW){
+    clearActions();
+    actBtn(DBL_AR[next],'gold',()=>{clearActions();dblRaise(next,who);});
+    actBtn('بس','ghost',()=>{clearActions();dblDone();});
+  }else{
+    setTimeout(()=>{
+      if(aiWantsRaise(who,next))dblRaise(next,who);else dblDone();
+    },800);
+  }
+}
+function dblRaise(lvl,who){
+  G.dbl.level=lvl;dblSay(who,lvl);
+  if(lvl==='gahwa'){setTimeout(dblDone,1000);return;}
+  if(lvl==='four'){setTimeout(dblAfterDeclare,900);return;}   // الأربعة تعيد خيار مقفل/مفتوح للمدبِّل
+  setTimeout(dblAskRaise,900);                                 // الثلاثة مفتوحة دائمًا
+}
+function dblDone(){
+  clearActions();
+  G.phase='bid';                                // نعيد الطور ليكمل finishDeal طبيعيًا
+  const b=G.curBid;
+  // «حكم ثاني» مدبول: اللون ما زال مخفيًا — يُختار الآن، وبلا خيار صن (الدبل يمنع القلب)
+  if(b.type==='hokm'&&!b.suit){
+    G.turn=b.seat;
+    if(b.seat===VIEW&&!DBG.master)return showFinalSuitPicker(false);
+    const su=aiPickFinalSuit(b.seat);
+    return setTimeout(()=>finalizeHokmSuit(su),700);
+  }
+  G.mode=b.type;G.trump=b.type==='hokm'?b.suit:null;G.declarer=b.seat;
+  finishDeal();
+}
+function aiClosedChoice(seat){
+  // يقفل إذا كان قليل الحكم (يمنع خصمه من استغلال أحكامه)
+  try{
+    const b=G.curBid;
+    const t=G.trump||(b&&b.type==='hokm'?(b.suit||(G.hokmSuitHint&&G.hokmSuitHint[b.seat])):null);
+    if(!t)return false;
+    const mine=G.hands[seat].filter(c=>c.s===t).length;
+    return mine<=1;   // معي حكم قليل → أقفل لأمنع خصمي من استغلال أحكامه
+  }catch(e){return false;}
+}
+function aiWantsRaise(seat,next){
+  // تقدير بسيط: يصعّد فقط بيد قوية جدًا من منظوره
+  try{
+    const t=G.trump;
+    let pts=0,tr=0;
+    for(const c of G.hands[seat]){if(t&&c.s===t){pts+=HK_TRUMP[c.r];tr++;}else pts+=SUN_VAL[c.r];}
+    const need={three:34,four:40,gahwa:48}[next]||99;
+    return pts>=need&&(!t||tr>=2);
+  }catch(e){return false;}
 }
 function lockContract(){
   const b=G.curBid;
@@ -792,11 +885,12 @@ function finalizeHokmSuit(suit){
   G.mode='hokm';G.trump=suit;G.declarer=G.curBid.seat;
   finishDeal();
 }
-function showFinalSuitPicker(){
+function showFinalSuitPicker(allowSun){
   clearActions();
   const exclude=G.buyer.s; // round2: hide the floor-card suit
-  actBtn('صن','gold',()=>{clearActions();finalizeAsSun();});
+  if(allowSun!==false)actBtn('صن','gold',()=>{clearActions();finalizeAsSun();});
   for(const su of SUITS){if(su===exclude)continue;actBtn(suitLabel(su),'',()=>{clearActions();finalizeHokmSuit(su);});}
+  toast('اختر لون الحكم','');
 }
 function finalizeAsSun(){
   G.curBid.type='sun';G.curBid.suit=null;
@@ -882,6 +976,18 @@ function declarePhase(seat){
   G.projPick={'سرا':0,'خمسين':0,'مية':0,'أربعمية':0};
   showProjectChoice();highlightPlayable();
 }
+const DBL_MULT={double:2,three:3,four:4,gahwa:4};
+const DBL_AR={double:'دبل',three:'ثلاثة',four:'أربعة',gahwa:'قهوة'};
+const DBL_CLIP={double:'double',three:'three',four:'four',gahwa:'gahwa'};
+function teamScore(t){return t===0?MATCH.us:MATCH.them;}
+// من يحق له الدبل: الحكم دائمًا، والصن فقط إذا كان المشتري ≥١٠٠ والمدبِّل تحتها
+function canDoubleNow(seat){
+  const b=G.curBid;if(!b||!G.dbl||G.dbl.level)return false;
+  const buyerTeam=TEAM[b.ashkal?partnerOf(b.seat):b.seat];
+  if(TEAM[seat]===buyerTeam)return false;
+  if(b.type==='hokm')return true;
+  return teamScore(buyerTeam)>=100 && teamScore(TEAM[seat])<100;
+}
 const PROJ_MAX={'سرا':2,'خمسين':2,'مية':2,'أربعمية':1};
 function showProjectChoice(){
   clearActions();
@@ -944,7 +1050,14 @@ function trumpSuit(){return G.mode==='hokm'?G.trump:null;}
 function rankStrength(c,lead){const t=trumpSuit();if(t&&c.s===t)return 200+ORD_TRUMP.indexOf(c.r);if(c.s===lead)return 100+ORD_PLAIN.indexOf(c.r);return ORD_PLAIN.indexOf(c.r);}
 function legalCards(seat){
   const h=G.hands[seat];
-  if(!G.trick.length)return h.slice();
+  if(!G.trick.length){
+    // اللعب المقفل: ممنوع فتح الحكم إلا إذا لم يبقَ بيدك غيره
+    if(G.dbl&&G.dbl.closed&&G.mode==='hokm'&&G.trump){
+      const nonT=h.filter(c=>c.s!==G.trump);
+      if(nonT.length)return nonT;
+    }
+    return h.slice();
+  }
   const lead=G.trick[0].card.s;
   const fol=h.filter(c=>c.s===lead);
   if(fol.length){
@@ -1102,8 +1215,11 @@ function sortMastersStrongFirst(arr,mode,trump,val){
 function simKey(c){return c.s+c.r;}
 function simVal(mode,trump,c){return(mode==='hokm'&&c.s===trump)?HK_TRUMP[c.r]:SUN_VAL[c.r];}
 function simStr(mode,trump,lead,c){if(mode==='hokm'&&c.s===trump)return 200+ORD_TRUMP.indexOf(c.r);if(c.s===lead)return 100+ORD_PLAIN.indexOf(c.r);return ORD_PLAIN.indexOf(c.r);}
-function simLegal(hand,trick,mode,trump,seat){
-  if(!trick.length)return hand.slice();
+function simLegal(hand,trick,mode,trump,seat,closed){
+  if(!trick.length){
+    if(closed&&mode==='hokm'&&trump){const nt=hand.filter(c=>c.s!==trump);if(nt.length)return nt;}
+    return hand.slice();
+  }
   const lead=trick[0].card.s;
   const f=hand.filter(c=>c.s===lead);
   if(f.length){
@@ -1256,6 +1372,21 @@ function simSunLead(st,seat,legal){
   if(want){const wc=legal.filter(c=>c.s===want).sort((a,b)=>val(a)-val(b));if(wc.length)return{c:wc[0],why:'تلبية إشارة الشريك'};}
   legal.sort((a,b)=>val(a)-val(b));return{c:legal[0],why:'أصغر ورقة'};}
 function simPolicy(st,seat){
+  // اللعب المقفل: أي خطة تفتح بالحكم تُصحَّح فورًا (ممنوع التربيع)
+  if(st.closed&&st.mode==='hokm'&&st.trump&&!st.trick.length){
+    const nonT=st.hands[seat].filter(c=>c.s!==st.trump);
+    if(nonT.length){
+      const alt=Object.assign({},st,{hands:Object.assign({},st.hands)});
+      alt.hands[seat]=nonT;alt.closed=false;
+      const r=simPolicyCore(alt,seat);
+      if(r&&r.c&&r.c.s!==st.trump)return r;
+      const js=nonT.slice().sort((a,b)=>simVal(st.mode,st.trump,a)-simVal(st.mode,st.trump,b));
+      return{c:js[0],why:'مقفل: خروج بورقة جانبية'};
+    }
+  }
+  return simPolicyCore(st,seat);
+}
+function simPolicyCore(st,seat){
   const hand=st.hands[seat],legal=simLegal(hand,st.trick,st.mode,st.trump,seat);
   if(legal.length===1)return{c:legal[0],why:'إجباري'};
   const lead=st.trick.length?st.trick[0].card.s:null;
@@ -1689,7 +1820,7 @@ function simSolve(st,decTeam,alpha,beta){
     const c=simClone(st);let g=40;while(simRemaining(c)>0&&g-->0){const mv=simPolicy(c,c.turn);simApply(c,c.turn,mv.c);}
     return simLeafDiff(c,decTeam);}
   const seat=st.turn,maxing=TEAM[seat]===0;
-  const legal=simLegal(st.hands[seat],st.trick,st.mode,st.trump,seat);
+  const legal=simLegal(st.hands[seat],st.trick,st.mode,st.trump,seat,st.closed);
   let best=maxing?-1e9:1e9;
   for(const c of legal){
     const ns=simClone(st);simApply(ns,seat,c);
@@ -1717,7 +1848,7 @@ function mcPick(info,opts){
         void:{S:Object.assign({},info.void.S),W:Object.assign({},info.void.W),N:Object.assign({},info.void.N),E:Object.assign({},info.void.E)},
         signal:Object.assign({},info.signal),
         reveal:(function(r){const o={};for(const s in r)o[s]={suit:r[s].suit,pts:r[s].pts};return o;})(info.reveal||{}),
-        pts:{0:0,1:0},lastWin:null,floor:info.floor||null};
+        pts:{0:0,1:0},lastWin:null,floor:info.floor||null,closed:!!info.closed};
       stp.hands[info.seat]=info.hand.map(c=>({s:c.s,r:c.r}));
       const plan=simDeclLeadHokm(stp,info.seat,legal.map(c=>({s:c.s,r:c.r})));
       if(plan&&plan.c&&(plan.c.s===info.trump||plan.why==='حفظ الحكم'||plan.why==='دق برأس التتابع'||plan.why==='خدمة مشروع الشريك'||plan.why==='تغذية إكة الأرض عند الشريك'||plan.why==='تربيع بالبوس'||plan.why==='تربيع بأصغر حكم لإطاحة الولد'||plan.why==='تربيع الشريك بأكبر حكم'||plan.why==='مواصلة التربيع بأصغر حكم')){
@@ -1734,7 +1865,7 @@ function mcPick(info,opts){
         void:{S:Object.assign({},info.void.S),W:Object.assign({},info.void.W),N:Object.assign({},info.void.N),E:Object.assign({},info.void.E)},
         signal:Object.assign({},info.signal),
         reveal:(function(r){const o={};for(const s in r)o[s]={suit:r[s].suit,pts:r[s].pts};return o;})(info.reveal||{}),
-        pts:{0:0,1:0},lastWin:null,floor:info.floor||null};
+        pts:{0:0,1:0},lastWin:null,floor:info.floor||null,closed:!!info.closed};
       stp.hands[info.seat]=info.hand.map(c=>({s:c.s,r:c.r}));
       const plan=simPolicy(stp,info.seat);
       if(plan&&plan.c){ // defenders' opening leads follow the table plan, always
@@ -1752,7 +1883,7 @@ function mcPick(info,opts){
         void:{S:Object.assign({},info.void.S),W:Object.assign({},info.void.W),N:Object.assign({},info.void.N),E:Object.assign({},info.void.E)},
         signal:Object.assign({},info.signal),
         reveal:(function(r){const o={};for(const s in r)o[s]={suit:r[s].suit,pts:r[s].pts};return o;})(info.reveal||{}),
-        pts:{0:0,1:0},lastWin:null,floor:info.floor||null};
+        pts:{0:0,1:0},lastWin:null,floor:info.floor||null,closed:!!info.closed};
       stf.hands[info.seat]=info.hand.map(c=>({s:c.s,r:c.r}));
       const plan=simPolicy(stf,info.seat);
       const CONV=['الشريك متقدم — رمية صغيرة','إشارة للشريك','تربيع خلف سحب الشريك','تحميل على سحب الشريك',
@@ -1853,7 +1984,8 @@ function buildInfo(seat){
       if(it&&it.cards&&it.cards.length>=3&&it.cards.every(c=>c.s===it.cards[0].s))
         reveal[s]={suit:it.cards[0].s,pts:it.pts||0,cards:it.cards.map(c=>({s:c.s,r:c.r}))};}}
   const floor=(G.buyer&&G.floorTo)?{s:G.buyer.s,r:G.buyer.r,to:G.floorTo}:null;
-  return{seat,mode:G.mode,trump:G.mode==='hokm'?G.trump:null,declarer:G.declarer,turn:G.turn,trickNo:G.trickNo,floor,
+  const closed=!!(G.dbl&&G.dbl.closed);
+  return{seat,mode:G.mode,trump:G.mode==='hokm'?G.trump:null,declarer:G.declarer,turn:G.turn,trickNo:G.trickNo,floor,closed,
     hand:G.hands[seat].map(c=>({s:c.s,r:c.r})),
     counts:{S:G.hands.S.length,W:G.hands.W.length,N:G.hands.N.length,E:G.hands.E.length},
     trick:G.trick.map(p=>({seat:p.seat,card:{s:p.card.s,r:p.card.r}})),
@@ -2000,7 +2132,20 @@ function scoreHand(){
   const bal={0:0,1:0};if(G.baloot.declared)bal[G.baloot.team]+=2;
   const d=TEAM[G.declarer],o=d^1;let board={0:0,1:0};
   const totD=units[d]+projU[d]+bal[d], totO=units[o]+projU[o]+bal[o];
-  if(totD<=totO){
+  const DB=(G.dbl&&G.dbl.level)?G.dbl:null;
+  if(DB){
+    // مدبولة: الفائز بالأبناط يأخذ كل شيء مضاعفًا، والخاسر صفر. التعادل يُخسِر المدبِّل.
+    const mult=DBL_MULT[DB.level]||2;
+    let w = raw[0]>raw[1]?0 : raw[1]>raw[0]?1 : (DB.byTeam^1);
+    board[w]=POOL*mult + projU[w]*mult + bal[w];   // المشاريع تُضاعف، البلوت لا يُضاعف
+    board[w^1]=0;
+    G._dblResult={mult,w,level:DB.level};
+    if(DB.level==='gahwa'){                        // قهوة: الفائز يصل ١٥٢ فورًا
+      const cur=(w===0?MATCH.us:MATCH.them);
+      board[w]=Math.max(board[w],152-cur);
+    }
+    toast(DBL_AR[DB.level]+'!',(w===0?'لنا':'لهم')+' تأخذ كل شيء');
+  } else if(totD<=totO){
     board[o]=POOL+projU[0]+projU[1]+bal[0]+bal[1];board[d]=0;
     toast('خسارة!',(o===0?'لنا':'لهم')+' تأخذ القبضة');
   }else{board[0]=units[0]+projU[0]+bal[0];board[1]=units[1]+projU[1]+bal[1];}
@@ -2014,7 +2159,10 @@ function showHandResult(raw,units,projU,bal,board,extra){
   const landTeam=(extra.landTeam===0||extra.landTeam===1)?extra.landTeam:null;
   const modeTxt=G.mode==='sun'?'صن':('حكم '+SUIT_SYM[G.trump]);
   const declUs=(TEAM[G.declarer]===0);
-  const res=extra.baytah?'<b style="color:#b5482f">خسارة</b>':'<b style="color:#1f6b40">ربحانة</b>';
+  let res=extra.baytah?'<b style="color:#b5482f">خسارة</b>':'<b style="color:#1f6b40">ربحانة</b>';
+  const DR=G._dblResult;
+  if(DR){const w=DR.w;res=`<b style="color:#8a5a12">${DBL_AR[DR.level]} ×${DR.mult}</b> · الفائز: <b>${w===0?'لنا':'لهم'}</b>`
+    +(G.dbl&&G.dbl.closed?' · <b>مقفل</b>':'');}
   // project names per team (for the middle rows)
   const projNames={0:[],1:[]};
   for(const s of SEATS){const l=(typeof declaredList==='function')?declaredList(s):[];
@@ -2091,11 +2239,13 @@ function showBidUI(){
     else               actBtn('حكم ثاني','',()=>doBid({type:'hokm',suit:null}));
     actBtn(G.dealer===VIEW?(G.bidRound===1?'ثاني':'ورق'):(G.bidRound===1?'بس':'ولا'),'ghost',()=>doBid({type:'pass'}));
   } else if(curRank<2){
-    // a hokm contract stands → break with صن (own) or أشكل (الأرض للشريك)
+    // a hokm contract stands → break with صن (own) or أشكل (الأرض للشريك) — or double it
     actBtn('صن','gold',()=>doBid({type:'sun'}));
     if(canAshkal(VIEW))actBtn('أشكل','gold',()=>doBid({type:'sun',ashkal:true}));
+    if(canDoubleNow(VIEW))actBtn('دبل','gold',()=>doBid({type:'double'}));
     actBtn('بس','ghost',()=>doBid({type:'pass'}));
   } else {
+    if(canDoubleNow(VIEW))actBtn('دبل','gold',()=>doBid({type:'double'}));
     actBtn('بس','ghost',()=>doBid({type:'pass'})); // sun stands, nothing beats it
   }
 }
