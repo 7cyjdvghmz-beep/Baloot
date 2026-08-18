@@ -1021,7 +1021,10 @@ function applyArt(on){
   const f=el('rugfield');
   if(f){f.style.backgroundImage=on?('url('+ART.table+')'):'';
         f.style.backgroundSize=on?'100% 100%':'';f.style.backgroundPosition='center';}
-  try{document.documentElement.style.setProperty('--card-back-img','url('+ART.back+')');}catch(e){}
+  try{
+    const r=document.documentElement.style;
+    r.setProperty('--card-back-img','url('+ART.back+')');
+  }catch(e){}
   document.body.classList.toggle('art-on',!!on);
 }
 const DBL_MULT={double:2,three:3,four:4,gahwa:4};
