@@ -60,6 +60,11 @@
   body.art-on #rugfield{background-repeat:no-repeat;}
   body.art-on .card.back{background:var(--card-back-img) center/cover !important;border-color:#e7d3a0;}
   body.art-on #topbar{background:var(--topbar-img) center/cover !important;border-color:rgba(216,169,58,.55) !important;}
+  #topbar{display:flex;align-items:center;justify-content:space-between;gap:6px;}
+  .tb-side{display:flex;gap:6px;flex:1 1 0;align-items:center;}
+  .tb-side:first-of-type{justify-content:flex-start;}
+  .tb-side:last-of-type{justify-content:flex-end;}
+  #scorebox{flex:0 0 auto;}
   body.art-on .plate{background:var(--plate-img) center/cover !important;border:none !important;color:#2a1c0f;}
   body.art-on .plate .rk{color:#6b4a1e;}
   body.art-on .avatar{background:var(--ring-img) center/cover !important;border:none !important;}
@@ -161,9 +166,9 @@
 
   /* opponent fanned backs */
   .fan{position:absolute;display:flex;z-index:9;}
-  #fan-N{top:64px;left:50%;transform:translateX(-50%);}
-  #fan-E{top:50%;left:60px;transform:translateY(-50%);transform-origin:center;}
-  #fan-W{top:50%;right:60px;transform:translateY(-50%);transform-origin:center;}
+  #fan-N{top:50%;left:50%;transform:translate(-50%,-50%);direction:ltr;}
+  #fan-E{top:50%;left:50%;transform:translate(-50%,-50%);transform-origin:center;direction:ltr;}
+  #fan-W{top:50%;left:50%;transform:translate(-50%,-50%);transform-origin:center;direction:ltr;}
   .miniback{width:30px;height:42px;border-radius:5px;margin-inline-start:-19px;
     background:repeating-linear-gradient(45deg,#9c2b22 0 4px,#7e221b 4px 8px);
     border:1.5px solid #e7d3a0;box-shadow:0 2px 4px rgba(0,0,0,.3);position:relative;}
@@ -251,7 +256,12 @@
   #hand .card.dim{opacity:.42;filter:grayscale(.5);}
 
   /* ---------- Bid / action bar (bottom) ---------- */
-  #actionbar{display:flex;gap:8px;padding:6px 10px 12px;justify-content:center;}
+  #actionbar{display:flex;gap:8px;padding:6px 10px 12px;justify-content:center;align-items:center;min-height:58px;flex-wrap:wrap;}
+  .ab-pre-tag{flex-basis:100%;text-align:center;font-size:10px;font-weight:700;
+    color:rgba(244,240,230,.55);margin-bottom:2px;pointer-events:none;}
+  .abtn.pre{opacity:.75;}
+  .abtn.pre-on{opacity:1;outline:2px solid #d8a93a;outline-offset:1px;}
+  .ab-idle{color:rgba(244,240,230,.35);font-size:11px;font-weight:700;border:1px dashed rgba(244,240,230,.20);border-radius:11px;padding:9px 16px;pointer-events:none;user-select:none;}
   .abtn{flex:1;max-width:150px;background:linear-gradient(180deg,#e9ddc2,#cdbb92);border:1px solid #a7935f;
     border-radius:13px;padding:13px 8px;font-size:16px;font-weight:800;color:#2c2113;
     box-shadow:0 3px 7px rgba(0,0,0,.28);cursor:pointer;transition:.1s;}
@@ -284,21 +294,25 @@
 </head>
 <body>
 <div id="app">
-  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v126</div>
+  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v135</div>
 <div id="topbar">
-    <div class="tb">⋯<small>المزيد</small></div>
-    <div class="tb" id="dbg-btn">🐞<small>تدقيق</small></div>
-    <div class="tb" id="snd-btn">🔊<small>الصوت</small></div>
-    <div class="tb" id="view-btn">🪑<small>مقعدي</small></div>
+    <div class="tb-side">
+      <div class="tb" id="view-btn">🪑<small>مقعدي</small></div>
+      <div class="tb" id="snd-btn">🔊<small>الصوت</small></div>
+      <div class="tb" id="dbg-btn">🐞<small>تدقيق</small></div>
+    </div>
     <div id="scorebox">
       <div class="sc-row">
-        <div class="sc them"><div class="h">لهم</div><div class="v" id="score-them">0</div></div>
         <div class="sc us"><div class="h">لنا</div><div class="v" id="score-us">0</div></div>
+        <div class="sc them"><div class="h">لهم</div><div class="v" id="score-them">0</div></div>
       </div>
       <div class="sess">جلسة ٦٠٠٣ · إلى ١٥٢</div>
     </div>
-    <div class="tb">⤴<small>مشاركة</small></div>
-    <div class="tb">☺<small>تعابير</small></div>
+    <div class="tb-side">
+      <div class="tb">⤴<small>مشاركة</small></div>
+      <div class="tb">☺<small>تعابير</small></div>
+      <div class="tb">⋯<small>المزيد</small></div>
+    </div>
   </div>
 
   <div id="table">
@@ -693,7 +707,7 @@ function startHand(){
      trick:[],tricksWon:{0:[],1:[]},lastTrickWinner:null,trickNo:1,
      seatProjects:{},declared:{},declaredDone:{},ownerProjects:{},projectWinner:null,projectPoints:0,
      baloot:{declared:false,team:null},_kq:{},announced:{},projShown:{},projHidden:{},
-     dbl:{level:null,by:null,byTeam:null,closed:false},_dblResult:null,arrange:false,manualOrder:false,justDealt:true,handId:Date.now()};
+     dbl:{level:null,by:null,byTeam:null,closed:false},_dblResult:null,arrange:false,manualOrder:false,justDealt:true,preBid:null,handId:Date.now()};
   if(typeof DBG!=='undefined'){DBG.stack.length=0;DBG.paused=false;DBG.gen=(DBG.gen||0)+1;if(DBG.on)setTimeout(dbgBar,50);}
   const ab=el('arrange-btn');if(ab){ab.textContent='↕ ترتيب';ab.classList.remove('on');}
   renderAll();renderBuyer(true);renderBadges();
@@ -719,7 +733,13 @@ function bidStep(){
   if(G.phase!=='bid')return;setActive(G.turn);renderBadges();
   if(G.turn===VIEW){
     if(DBG.master){setTimeout(()=>applyBid(VIEW,aiBid(VIEW)),650);return;}
+    if(G.preBid){
+      const pb=G.preBid;G.preBid=null;
+      if(bidStillValid(pb)){clearActions();toast('نُفِّذ اختيارك: '+preLabel(pb));setTimeout(()=>doBid(pb),420);return;}
+      toast('تعذّر تنفيذ اختيارك المسبق — تغيّر المزاد');
+    }
     showBidUI();return;}
+  showPreBidUI();
   setTimeout(()=>applyBid(G.turn,aiBid(G.turn)),650);
 }
 function handStrength(seat,t){let p=0,tr=0;for(const c of G.hands[seat]){if(t&&c.s===t){p+=HK_TRUMP[c.r];tr++;}else p+=SUN_VAL[c.r];}return{p,tr};}
@@ -2304,9 +2324,65 @@ function showWinner(){
 }
 
 /* ---------- bid UI + actions ---------- */
-function clearActions(){el('actionbar').innerHTML='';}
-function actBtn(label,cls,cb){const b=document.createElement('button');b.className='abtn '+(cls||'');b.innerHTML=label;b.onclick=cb;el('actionbar').appendChild(b);return b;}
+function clearActions(){const a=el('actionbar');a.innerHTML='<div class="ab-idle">لا توجد إجراءات الآن</div>';}
+function actBtn(label,cls,cb){const _i=el('actionbar').querySelector('.ab-idle');if(_i)_i.remove();const b=document.createElement('button');b.className='abtn '+(cls||'');b.innerHTML=label;b.onclick=cb;el('actionbar').appendChild(b);return b;}
 function suitLabel(su){return `حكم <span class="${RED[su]?'rs':''}">${SUIT_SYM[su]}</span>`;}
+/* ---------- الاختيار المسبق للشراء ---------- */
+function bidStillValid(b){
+  if(!b)return false;
+  const cur=G.curBid, curRank=bidRank(cur);
+  if(b.type==='pass')return true;
+  if(b.type==='double')return canDoubleNow(VIEW);
+  if(b.type==='sun'){
+    if(curRank>=2)return false;
+    if(b.ashkal)return !!(cur&&cur.type==='hokm'&&canAshkal(VIEW));
+    return true;
+  }
+  if(b.type==='hokm'){
+    if(curRank>=1)return false;
+    if(G.bidRound===1)return b.suit===G.buyer.s;
+    return true;
+  }
+  return false;
+}
+function setPreBid(b){
+  G.preBid=(G.preBid&&JSON.stringify(G.preBid)===JSON.stringify(b))?null:b;
+  showPreBidUI();
+}
+function preLabel(b){
+  if(!b)return '';
+  if(b.type==='pass')return 'بس';
+  if(b.type==='double')return 'دبل';
+  if(b.type==='sun')return b.ashkal?'أشكل':'صن';
+  if(b.type==='hokm')return b.suit?suitLabel(b.suit):'حكم ثاني';
+  return '';
+}
+function preOpt(label,b){
+  const on=G.preBid&&JSON.stringify(G.preBid)===JSON.stringify(b);
+  const btn=actBtn(label,on?'gold':'ghost',()=>setPreBid(b));
+  btn.classList.add('pre');
+  if(on)btn.classList.add('pre-on');
+  return btn;
+}
+function showPreBidUI(){
+  if(G.phase!=='bid'||G.turn===VIEW)return;
+  clearActions();
+  const tag=document.createElement('div');
+  tag.className='ab-pre-tag';
+  tag.textContent=G.preBid?('اخترت مسبقًا: '+preLabel(G.preBid)):'اختر مسبقًا (ينفَّذ عند دورك)';
+  el('actionbar').appendChild(tag);
+  const cur=G.curBid, curRank=bidRank(cur), bs=G.buyer.s;
+  if(curRank<2){
+    preOpt('صن',{type:'sun'});
+    if(cur&&cur.type==='hokm'&&canAshkal(VIEW))preOpt('أشكل',{type:'sun',ashkal:true});
+  }
+  if(curRank<1){
+    if(G.bidRound===1)preOpt(suitLabel(bs),{type:'hokm',suit:bs});
+    else preOpt('حكم ثاني',{type:'hokm',suit:null});
+  }
+  if(canDoubleNow(VIEW))preOpt('دبل',{type:'double'});
+  preOpt(G.dealer===VIEW?(G.bidRound===1?'ثاني':'ورق'):(G.bidRound===1?'بس':'ولا'),{type:'pass'});
+}
 function showBidUI(){
   clearActions();
   const cur=G.curBid, curRank=bidRank(cur), bs=G.buyer.s;
@@ -2446,7 +2522,7 @@ function renderFans(){
   for(const s of SEATS){
     if(s===VIEW)continue;
     try{
-    const f=el('fan-'+P(s));f.innerHTML='';f.style.direction='ltr';f.style.position='relative';
+    const f=el('fan-'+P(s));f.innerHTML='';f.style.direction='ltr';
     // fixed footprint (8-card size) so the fan NEVER moves as cards run out
     const FW=W0+14;
     f.style.width=FW+'px';f.style.height=H0+'px';f.style.flex='none';
@@ -2698,8 +2774,8 @@ function renderAll(){
 }
 /* ---------- layout editor (move all elements) ---------- */
 const MOVABLE=['scorebox','rug','center','play-N','play-E','play-W','play-S','seat-N','seat-E','seat-W','seat-S','fan-N','fan-E','fan-W','proj-N','proj-E','proj-W','proj-S','hand-wrap','actionbar'];
-const LKEY='baloot_layout_v2';
-const DEFAULT_LAYOUT={"rug":{"dx":-2,"dy":96},"fan-N":{"dx":190,"dy":-26},"fan-E":{"dx":-7,"dy":-55},"fan-W":{"dx":381,"dy":-110},"proj-N":{"dx":-34,"dy":-26},"proj-E":{"dx":-26,"dy":53},"proj-W":{"dx":24,"dy":58},"proj-S":{"dx":148,"dy":37},"center":{"dx":-26,"dy":83},"play-N":{"dx":-7,"dy":3},"play-E":{"dx":51,"dy":-44},"play-W":{"dx":-9,"dy":-46},"play-S":{"dx":-5,"dy":-23},"seat-N":{"dx":1,"dy":28},"seat-E":{"dx":-17,"dy":-92},"seat-W":{"dx":8,"dy":-80},"seat-S":{"dx":-161,"dy":21},"hand-wrap":{"dx":-1,"dy":-40},"actionbar":{"dx":-3,"dy":-25}};
+const LKEY='baloot_layout_v8';
+const DEFAULT_LAYOUT={"rug": {"dx": -2, "dy": 96}, "fan-N": {"dx": 0, "dy": -159}, "fan-E": {"dx": -152, "dy": 10}, "fan-W": {"dx": 145, "dy": 11}, "proj-N": {"dx": -34, "dy": -26}, "proj-E": {"dx": -26, "dy": 53}, "proj-W": {"dx": 18, "dy": 48}, "proj-S": {"dx": 148, "dy": 37}, "center": {"dx": -26, "dy": 83}, "play-N": {"dx": -7, "dy": 3}, "play-E": {"dx": 51, "dy": -44}, "play-W": {"dx": -9, "dy": -46}, "play-S": {"dx": -5, "dy": -23}, "seat-N": {"dx": 1, "dy": 28}, "seat-E": {"dx": -6, "dy": 76}, "seat-W": {"dx": -6, "dy": 70}, "seat-S": {"dx": -161, "dy": 21}, "hand-wrap": {"dx": 0, "dy": -50}, "actionbar": {"dx": -3, "dy": -25}};
 let LAYOUT={};
 const PKEY='baloot_proj_v3';
 const DEFAULT_PROJ={S:{scale:1.9,vertical:false,overlap:0.85,tilt:9,rot:0},N:{scale:1.6,vertical:false,overlap:0.85,tilt:6,rot:-180},E:{scale:1.6,vertical:true,overlap:0.85,tilt:7,rot:90},W:{scale:1.6,vertical:true,overlap:0.85,tilt:9,rot:-90}};
