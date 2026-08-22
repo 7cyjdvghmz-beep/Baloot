@@ -155,6 +155,7 @@
     box-shadow:0 2px 5px rgba(0,0,0,.25);}
   .badge.dealer{background:#f2d44d;color:#3a2c00;display:none;}
   .badge.contract{background:#fff;color:#1b1b1b;border:1px solid #d8c79a;display:none;}
+  .badge.contract.pending{background:#fff7e2;color:#6b4e05;border:1px dashed #d8a93a;box-shadow:0 2px 6px rgba(216,169,58,.35);}
   .badge.contract .rs{color:var(--red);}
   .badge.project{background:linear-gradient(180deg,var(--gold-l),var(--gold-deep));color:#241a06;display:none;}
 
@@ -294,7 +295,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v135</div>
+  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v136</div>
 <div id="topbar">
     <div class="tb-side">
       <div class="tb" id="view-btn">🪑<small>مقعدي</small></div>
@@ -852,6 +853,7 @@ function applyBid(seat,bid){
   if(hideSuit&&bid.suit){(G.hokmSuitHint=G.hokmSuitHint||{})[seat]=bid.suit;}
   G.curBid={type:bid.type,suit:bid.type==='hokm'?(hideSuit?null:bid.suit):null,seat,ashkal:isAshkal};
   for(const s of SEATS)G.bidActed[s]=false;G.bidActed[seat]=true;
+  renderBadges();   // انقل شارة الشراء لصاحب المزايدة الأعلى فورًا
   let label;
   if(bid.type==='sun')label=isAshkal?'أشكل':'صن';
   else if(hideSuit)label='حكم ثاني';
@@ -2555,9 +2557,19 @@ function renderBadges(){
     seat.querySelector('.badge.dealer').style.display=(s===MATCH.dealer)?'block':'none';
     const cb=seat.querySelector('.badge.contract');
     if(G.mode&&s===G.declarer){
+      cb.classList.remove('pending');
       cb.innerHTML=G.mode==='sun'?'صن':('حكم <span class="'+(RED[G.trump]?'rs':'')+'">'+SUIT_SYM[G.trump]+'</span>');
       cb.style.display='block';
-    }else cb.style.display='none';
+    }else if(G.phase==='bid'&&G.curBid&&s===G.curBid.seat){
+      // المزايدة الأعلى حاليًا — تظل تحت اسم صاحبها حتى يعلو عليه غيره
+      const b=G.curBid;
+      let t;
+      if(b.type==='sun')t=b.ashkal?'أشكل':'صن';
+      else t=b.suit?('حكم <span class="'+(RED[b.suit]?'rs':'')+'">'+SUIT_SYM[b.suit]+'</span>'):'حكم';
+      cb.classList.add('pending');
+      cb.innerHTML=t;
+      cb.style.display='block';
+    }else{cb.classList.remove('pending');cb.style.display='none';}
     const pb=seat.querySelector('.badge.project');
     const op=G.ownerProjects&&G.ownerProjects[s];
     if(projectsVisible()&&op&&G.projShown[s]&&!(G.projHidden&&G.projHidden[s])){pb.textContent=op.name;pb.style.display='block';}
