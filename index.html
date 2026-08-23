@@ -21,32 +21,39 @@
     --plate:#b89968; --plate-d:#8f7547;
     --bar:#caa84a;
   }
-  /* ===== الثيمات ===== */
-  body[data-theme="majlis"]{            /* مجلس — دافئ سعودي (الأصلي مطوّر) */
-    --sand:#d6c09a; --sand-d:#c4ac82;
-    --rug-frame:#cdaa78; --rug-red:#a8362a; --rug-red2:#92291f;
-    --felt-a:#b8402f; --felt-b:#7d2318; --page-a:#2a2620; --page-b:#15120d;
-    --gold:#d8a93a; --gold-l:#e9c46a; --plate:#b89968; --plate-d:#8f7547;
+  /* ===== الثيمات — خمس فاتحة ومريحة للعين ===== */
+  body[data-theme="raml"]{
+    --sand:#efe6d6; --sand-d:#ded2bd;
+    --rug-frame:#e3d5bb; --rug-red:#d8c7a8; --rug-red2:#cbb896;
+    --felt-a:#f5efe3; --felt-b:#e8dfcd; --page-a:#faf7f0; --page-b:#efe8db;
+    --gold:#c2a25e; --gold-l:#d9c087; --plate:#eee6d6; --plate-d:#d3c6ac;
   }
-  body[data-theme="layl"]{              /* ليل — داكن أنيق */
-    --sand:#7d8a93; --sand-d:#5f6c75;
-    --rug-frame:#2f3a44; --rug-red:#1d4d3f; --rug-red2:#163d32;
-    --felt-a:#1f6b52; --felt-b:#0d3a2c; --page-a:#141a1f; --page-b:#080b0e;
-    --gold:#c9a227; --gold-l:#e3c565; --plate:#3c4a55; --plate-d:#2a343c;
-    --card-bg:#f6f3ea;
+  body[data-theme="nakhil"]{
+    --sand:#e4ece1; --sand-d:#cfdbcb;
+    --rug-frame:#d6e2d2; --rug-red:#bfd2ba; --rug-red2:#adc4a8;
+    --felt-a:#eff5ec; --felt-b:#dde8d9; --page-a:#f6faf4; --page-b:#e7efe3;
+    --gold:#8fae7d; --gold-l:#b3caa4; --plate:#e8f0e5; --plate-d:#c6d5c1;
   }
-  body[data-theme="sadu"]{              /* سدو — تراثي جريء */
-    --sand:#e3d5b8; --sand-d:#d0bf9c;
-    --rug-frame:#8c5a2b; --rug-red:#8e2b20; --rug-red2:#701f16;
-    --felt-a:#a8452f; --felt-b:#5e1a12; --page-a:#2b211a; --page-b:#140f0b;
-    --gold:#e0a92e; --gold-l:#f2cf72; --plate:#a8763f; --plate-d:#7c5528;
+  body[data-theme="samaa"]{
+    --sand:#e2e9f0; --sand-d:#cbd7e3;
+    --rug-frame:#d5e0ea; --rug-red:#bccfe0; --rug-red2:#a9c0d5;
+    --felt-a:#eef3f8; --felt-b:#dce6ef; --page-a:#f5f9fc; --page-b:#e6eef5;
+    --gold:#7fa3c4; --gold-l:#a5c2db; --plate:#e7eef5; --plate-d:#c4d3e0;
   }
-  /* عمق الطاولة: تدرّج شعاعي بدل اللون المسطّح */
-  body[data-theme] #rugfield{
-    background:radial-gradient(120% 100% at 50% 38%, var(--felt-a) 0%, var(--felt-b) 100%) !important;
-    box-shadow:inset 0 0 60px rgba(0,0,0,.45), inset 0 2px 0 rgba(255,255,255,.06);
+  body[data-theme="lulu"]{
+    --sand:#ebeaea; --sand-d:#d7d6d6;
+    --rug-frame:#dedddd; --rug-red:#cac9c9; --rug-red2:#b8b7b7;
+    --felt-a:#f4f4f4; --felt-b:#e6e6e6; --page-a:#fafafa; --page-b:#eeeeee;
+    --gold:#9c9c9c; --gold-l:#bdbdbd; --plate:#efefef; --plate-d:#d2d2d2;
   }
-  body[data-theme]{background:radial-gradient(120% 120% at 50% 40%, var(--page-a) 0%, var(--page-b) 100%) !important;}
+  body[data-theme="ward"]{
+    --sand:#f1e5e3; --sand-d:#ded0cd;
+    --rug-frame:#e6d6d3; --rug-red:#d9c3bf; --rug-red2:#c9afaa;
+    --felt-a:#f7efee; --felt-b:#ebdfdd; --page-a:#fbf6f5; --page-b:#f0e6e4;
+    --gold:#c08f86; --gold-l:#d6ada4; --plate:#f0e6e4; --plate-d:#d5c2be;
+  }
+  body[data-theme] .badge,body[data-theme] .seat .nm{color:#2a2622;}
+  body[data-theme] .tb{color:#2f2a24;}
   /* ظل أنعم وأوسع تحت الأوراق */
   body[data-theme] .card{box-shadow:0 6px 14px rgba(0,0,0,.30), 0 1px 2px rgba(0,0,0,.20) !important;}
   /* هالة أوضح لصاحب الدور */
@@ -65,8 +72,8 @@
   .tb-side:first-of-type{justify-content:flex-start;}
   .tb-side:last-of-type{justify-content:flex-end;}
   #scorebox{flex:0 0 auto;}
-  body.art-on .plate{background:var(--plate-img) center/cover !important;border:none !important;color:#2a1c0f;}
-  body.art-on .plate .rk{color:#6b4a1e;}
+  body.art-on .plate{background:linear-gradient(180deg,var(--plate),var(--plate-d)) !important;border:1px solid var(--gold) !important;color:#2a2622;}
+  body.art-on .plate .rk{color:#5b5148;}
   body.art-on .avatar{background:var(--ring-img) center/cover !important;border:none !important;}
   body.art-on .avatar::after{content:"";position:absolute;inset:0;border-radius:50%;
     background:radial-gradient(circle at 50% 40%,rgba(0,0,0,0) 55%,rgba(0,0,0,.15) 100%);}
@@ -111,7 +118,7 @@
   #rugfield{position:absolute;inset:24px;border-radius:5px;overflow:hidden;
     background:linear-gradient(180deg,var(--rug-red) 0%,var(--rug-red2) 100%);
     box-shadow:inset 0 0 0 2px rgba(255,255,255,.08);}
-  /* sadu horizontal bands + zigzags */
+  /* نقشة البساط: خطوط وزخارف */
   #rugfield::before{content:"";position:absolute;inset:0;opacity:.92;
     background:
       linear-gradient(0deg, transparent 0 6%, var(--gold) 6% 8.5%, transparent 8.5% 12%),
@@ -146,16 +153,16 @@
   .plate{margin-top:-8px;background:linear-gradient(180deg,#e7d9bb,#c9b58c);border:1px solid var(--plate-d);
     border-radius:9px;padding:8px 12px 5px;min-width:92px;text-align:center;box-shadow:0 3px 7px rgba(0,0,0,.3);}
   .plate .rk{font-size:11px;color:#5a4626;font-weight:700;line-height:1;}
-  .plate .bar{height:4px;width:64px;margin:4px auto 4px;border-radius:3px;background:#9a875f;overflow:hidden;}
+  .plate .bar{height:4px;width:64px;margin:4px auto 4px;border-radius:3px;background:rgba(0,0,0,.14);overflow:hidden;}
   .plate .bar i{display:block;height:100%;width:35%;background:linear-gradient(90deg,#b5482f,#d8a93a);}
-  .plate .nm{font-size:11px;font-weight:800;color:#2c2113;background:#f3ead2;border-radius:6px;padding:1px 7px;
+  .plate .nm{font-size:11px;font-weight:800;color:#2b2620;background:#fdfbf6;border-radius:6px;padding:1px 7px;
     display:inline-block;line-height:1.3;}
   .badges{margin-top:3px;display:flex;flex-direction:column;align-items:center;gap:2px;}
   .badge{font-size:11px;font-weight:800;padding:2px 9px;border-radius:8px;line-height:1.2;white-space:nowrap;
     box-shadow:0 2px 5px rgba(0,0,0,.25);}
   .badge.dealer{background:#f2d44d;color:#3a2c00;display:none;}
   .badge.contract{background:#fff;color:#1b1b1b;border:1px solid #d8c79a;display:none;}
-  .badge.contract.pending{background:#fff7e2;color:#6b4e05;border:1px dashed #d8a93a;box-shadow:0 2px 6px rgba(216,169,58,.35);}
+  .badge.contract.pending{background:#fff7e2;color:#6b4e05;border:1px dashed var(--gold);box-shadow:0 2px 6px rgba(216,169,58,.35);}
   .badge.contract .rs{color:var(--red);}
   .badge.project{background:linear-gradient(180deg,var(--gold-l),var(--gold-deep));color:#241a06;display:none;}
 
@@ -198,7 +205,7 @@
   .card{background:var(--card-bg);border-radius:8px;box-shadow:0 3px 7px rgba(0,0,0,.4);
     border:1px solid rgba(0,0,0,.12);position:relative;overflow:hidden;font-size:16px;}
   .card.red{color:var(--red);} .card.blk{color:var(--blk);}
-  .card.face{background:#fff;background-repeat:no-repeat;background-size:800% 400%;}
+  .card.face{background-repeat:no-repeat;background-size:800% 400%;background-color:#fbf7ec;}
   .corner{position:absolute;display:flex;flex-direction:column;align-items:center;line-height:.92;font-weight:800;}
   .corner.tl{top:3px;left:4px;} .corner.br{bottom:3px;right:4px;transform:rotate(180deg);}
   .corner .cr{font-size:.9em;} .corner .cs{font-size:.7em;margin-top:-1px;}
@@ -249,7 +256,7 @@
   #editbar button{border:none;border-radius:9px;font-weight:800;font-size:12px;padding:6px 10px;color:#241a06;
     background:linear-gradient(180deg,var(--gold-l),var(--gold-deep));}
   #editbar #edit-reset{background:#cdbb92;}
-  #handname .nm{background:#cfbf98;color:#2c2113;font-weight:800;font-size:12px;padding:3px 12px;border-radius:9px;}
+  #handname .nm{background:#fdfbf6;color:#2b2620;font-weight:800;font-size:12px;padding:3px 12px;border-radius:9px;}
   #hand{display:flex;direction:ltr;justify-content:center;align-items:flex-end;min-height:118px;padding-top:10px;}
   #hand .card{transition:transform .18s ease-out, box-shadow .18s ease-out;}
   #hand .card.lift{--pressY:-34px;z-index:60;box-shadow:0 8px 16px rgba(0,0,0,.4);}
@@ -258,11 +265,10 @@
 
   /* ---------- Bid / action bar (bottom) ---------- */
   #actionbar{display:flex;gap:8px;padding:6px 10px 12px;justify-content:center;align-items:center;min-height:58px;flex-wrap:wrap;}
-  .ab-pre-tag{flex-basis:100%;text-align:center;font-size:10px;font-weight:700;
-    color:rgba(244,240,230,.55);margin-bottom:2px;pointer-events:none;}
+  .ab-idle{color:rgba(60,50,35,.38);font-size:11px;font-weight:700;border:1px dashed rgba(60,50,35,.22);border-radius:11px;padding:9px 16px;pointer-events:none;user-select:none;}
+  .ab-pre-tag{flex-basis:100%;text-align:center;font-size:10px;font-weight:700;color:rgba(60,50,35,.6);margin-bottom:2px;pointer-events:none;}
   .abtn.pre{opacity:.75;}
-  .abtn.pre-on{opacity:1;outline:2px solid #d8a93a;outline-offset:1px;}
-  .ab-idle{color:rgba(244,240,230,.35);font-size:11px;font-weight:700;border:1px dashed rgba(244,240,230,.20);border-radius:11px;padding:9px 16px;pointer-events:none;user-select:none;}
+  .abtn.pre-on{opacity:1;outline:2px solid var(--gold);outline-offset:1px;}
   .abtn{flex:1;max-width:150px;background:linear-gradient(180deg,#e9ddc2,#cdbb92);border:1px solid #a7935f;
     border-radius:13px;padding:13px 8px;font-size:16px;font-weight:800;color:#2c2113;
     box-shadow:0 3px 7px rgba(0,0,0,.28);cursor:pointer;transition:.1s;}
@@ -295,7 +301,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v140</div>
+  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v147</div>
 <div id="topbar">
     <div class="tb-side">
       <div class="tb" id="view-btn">🪑<small>مقعدي</small></div>
@@ -580,6 +586,43 @@ function unlockAudio(){
 function stopClips(){
   CLIP_QUEUE.length=0;CLIP_BUSY=false;
   if(CLIP_AUDIO){try{CLIP_AUDIO.onended=null;CLIP_AUDIO.pause();}catch(e){}CLIP_AUDIO=null;}
+}
+/* ---------- صوت ضربة الورقة على الطاولة (مولّد برمجيًا) ---------- */
+function cardSlap(){
+  if(!SOUND_ON)return;
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC)return;
+    AUDIO_CTX=AUDIO_CTX||new AC();
+    if(AUDIO_CTX.state==='suspended')AUDIO_CTX.resume();
+    const ctx=AUDIO_CTX, t=ctx.currentTime;
+
+    // 1) نقرة عريضة: ضوضاء قصيرة تحاكي احتكاك الورق
+    const dur=0.13, sr=ctx.sampleRate, n=Math.max(1,Math.floor(sr*dur));
+    const buf=ctx.createBuffer(1,n,sr), d=buf.getChannelData(0);
+    for(let i=0;i<n;i++){
+      const p=i/n;
+      d[i]=(Math.random()*2-1)*Math.pow(1-p,3.2);   // انحسار سريع
+    }
+    const src=ctx.createBufferSource();src.buffer=buf;
+    const bp=ctx.createBiquadFilter();bp.type='bandpass';
+    bp.frequency.value=1900;bp.Q.value=0.8;
+    const ng=ctx.createGain();
+    ng.gain.setValueAtTime(0.34,t);
+    ng.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    src.connect(bp);bp.connect(ng);ng.connect(ctx.destination);
+    src.start(t);src.stop(t+dur);
+
+    // 2) دفعة منخفضة: رنّة الخشب تحت الضربة
+    const o=ctx.createOscillator(),og=ctx.createGain();
+    o.type='sine';
+    o.frequency.setValueAtTime(190,t);
+    o.frequency.exponentialRampToValueAtTime(72,t+0.09);
+    og.gain.setValueAtTime(0.30,t);
+    og.gain.exponentialRampToValueAtTime(0.001,t+0.10);
+    o.connect(og);og.connect(ctx.destination);
+    o.start(t);o.stop(t+0.11);
+  }catch(e){}
 }
 function playClips(keys){
   // play a sequence of clips back-to-back (e.g. حكم + هاص)
@@ -2133,6 +2176,7 @@ function playCard(seat,card){
   if(G.history)G.history.push({t:G.trickNo,seat,card:{s:card.s,r:card.r}});
   G.trick.push({seat,card});checkBaloot(seat,card);
   renderPlay(seat,card);renderHand();renderFans();
+  try{cardSlap();}catch(e){}
   if(G.trickNo===1&&!G.announced[seat]){G.announced[seat]=true;
     const list=declaredList(seat);
     if(list.length){const txt=list.length>1?list.map(x=>x.name).join(' + '):list[0].name;
@@ -2797,8 +2841,8 @@ function renderAll(){
 }
 /* ---------- layout editor (move all elements) ---------- */
 const MOVABLE=['scorebox','rug','center','play-N','play-E','play-W','play-S','seat-N','seat-E','seat-W','seat-S','fan-N','fan-E','fan-W','proj-N','proj-E','proj-W','proj-S','hand-wrap','actionbar','buyer'];
-const LKEY='baloot_layout_v9';
-const DEFAULT_LAYOUT={"rug": {"dx": 3, "dy": 105}, "fan-N": {"dx": 0, "dy": -159}, "fan-E": {"dx": -152, "dy": 10}, "fan-W": {"dx": 145, "dy": 11}, "proj-N": {"dx": -34, "dy": -26}, "proj-E": {"dx": -26, "dy": 53}, "proj-W": {"dx": 18, "dy": 48}, "proj-S": {"dx": 148, "dy": 37}, "center": {"dx": -26, "dy": 83}, "play-N": {"dx": -7, "dy": 3}, "play-E": {"dx": 51, "dy": -44}, "play-W": {"dx": -9, "dy": -46}, "play-S": {"dx": -5, "dy": -23}, "seat-N": {"dx": 1, "dy": 28}, "seat-E": {"dx": -6, "dy": 76}, "seat-W": {"dx": -6, "dy": 70}, "seat-S": {"dx": -161, "dy": 21}, "hand-wrap": {"dx": 4, "dy": -23}, "actionbar": {"dx": -3, "dy": -25}, "buyer": {"dx": -10, "dy": 78}};
+const LKEY='baloot_layout_v10';
+const DEFAULT_LAYOUT={"rug": {"dx": 3, "dy": 105}, "fan-N": {"dx": 0, "dy": -159}, "fan-E": {"dx": -152, "dy": 10}, "fan-W": {"dx": 145, "dy": 11}, "proj-N": {"dx": -34, "dy": -26}, "proj-E": {"dx": -26, "dy": 53}, "proj-W": {"dx": 18, "dy": 48}, "proj-S": {"dx": 148, "dy": 37}, "center": {"dx": -26, "dy": 83}, "play-N": {"dx": -7, "dy": 3}, "play-E": {"dx": 51, "dy": -44}, "play-W": {"dx": -9, "dy": -46}, "play-S": {"dx": -5, "dy": -23}, "seat-N": {"dx": 1, "dy": 28}, "seat-E": {"dx": -6, "dy": 76}, "seat-W": {"dx": -6, "dy": 70}, "seat-S": {"dx": -161, "dy": 21}, "hand-wrap": {"dx": 4, "dy": -23}, "actionbar": {"dx": -3, "dy": -25}, "buyer": {"dx": 0, "dy": 81}};
 let LAYOUT={};
 const PKEY='baloot_proj_v3';
 const DEFAULT_PROJ={S:{scale:1.9,vertical:false,overlap:0.85,tilt:9,rot:0},N:{scale:1.6,vertical:false,overlap:0.85,tilt:6,rot:-180},E:{scale:1.6,vertical:true,overlap:0.85,tilt:7,rot:90},W:{scale:1.6,vertical:true,overlap:0.85,tilt:9,rot:-90}};
@@ -2906,12 +2950,12 @@ window.addEventListener('load',()=>{
   el('view-btn').onclick=()=>{const i=SEATS.indexOf(VIEW);VIEW=SEATS[(i+1)%4];toast('مقعدك: '+PLATE[VIEW].nm,'منظور جديد — توزيع جديد');startHand();};
   // تبديل الثيم: اضغط على رقم النسخة بالزاوية
   (function(){
-    const THEMES=['turath','majlis','layl','sadu'],NAMES={turath:'تراثي ⭐',majlis:'مجلس',layl:'ليل',sadu:'سدو'};
-    let cur=0;try{const s=localStorage.getItem('baloot_theme');if(s&&THEMES.indexOf(s)>=0)cur=THEMES.indexOf(s);}catch(e){}
+    const THEMES=['raml','nakhil','samaa','lulu','ward'],NAMES={raml:'رمل ⭐',nakhil:'نخيل',samaa:'سماء',lulu:'لؤلؤ',ward:'ورد'};
+    let cur=0;try{const s=localStorage.getItem('baloot_theme_v2');if(s&&THEMES.indexOf(s)>=0)cur=THEMES.indexOf(s);}catch(e){}
     const apply=()=>{const t=THEMES[cur];
-      document.body.setAttribute('data-theme',t==='turath'?'majlis':t);
-      try{applyArt(t==='turath');}catch(e){}
-      try{localStorage.setItem('baloot_theme',t);}catch(e){}};
+      document.body.setAttribute('data-theme',t);
+      try{applyArt(true);}catch(e){}
+      try{localStorage.setItem('baloot_theme_v2',t);}catch(e){}};
     apply();
     const v=el('ver');
     if(v){v.style.pointerEvents='auto';v.style.cursor='pointer';v.style.padding='6px 10px';
