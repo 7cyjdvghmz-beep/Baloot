@@ -261,7 +261,12 @@
   #hand .card{transition:transform .18s ease-out, box-shadow .18s ease-out;}
   #hand .card.lift{--pressY:-34px;z-index:60;box-shadow:0 8px 16px rgba(0,0,0,.4);}
   #hand .card.lift{--pressY:-40px;z-index:60;box-shadow:0 8px 16px rgba(0,0,0,.45);}
-  #hand .card.dim{opacity:.42;filter:grayscale(.5);}
+  /* الأوراق غير المسموحة: تنزل قليلًا وتبقى واضحة تمامًا */
+  #hand .card.dim{--pressY:14px;filter:brightness(.97);box-shadow:0 2px 5px rgba(0,0,0,.22);}
+  /* المسموحة ترتفع قليلًا فيظهر الفرق بالمستوى لا بالشفافية */
+  #hand .card.playable{--pressY:-4px;box-shadow:0 7px 15px rgba(0,0,0,.34);}
+  /* الرفع عند الاختيار يتفوق على الحالتين أعلاه */
+  #hand .card.lift.lift{--pressY:-40px;z-index:60;box-shadow:0 8px 16px rgba(0,0,0,.45);}
 
   /* ---------- Bid / action bar (bottom) ---------- */
   #actionbar{display:flex;gap:8px;padding:6px 10px 12px;justify-content:center;align-items:center;min-height:58px;flex-wrap:wrap;}
@@ -304,7 +309,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v151</div>
+  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v152</div>
 <div id="topbar">
     <div class="tb-side">
       <div class="tb" id="view-btn">🪑<small>مقعدي</small></div>
@@ -1102,7 +1107,8 @@ function finishDeal(){
   setTimeout(playStep,500);
 }
 function cardOrder(c){return (G.mode==='hokm'&&c.s===G.trump)?ORD_TRUMP.indexOf(c.r):ORD_PLAIN.indexOf(c.r);}
-function sortHand(seat){G.hands[seat].sort((a,b)=>a.s!==b.s?SUITS.indexOf(a.s)-SUITS.indexOf(b.s):cardOrder(a)-cardOrder(b));}
+const HAND_SUIT_ORDER=['diamonds','spades','hearts','clubs'];  // أحمر/أسود بالتناوب
+function sortHand(seat){G.hands[seat].sort((a,b)=>a.s!==b.s?HAND_SUIT_ORDER.indexOf(a.s)-HAND_SUIT_ORDER.indexOf(b.s):cardOrder(a)-cardOrder(b));}
 
 /* ---------- projects ---------- */
 function detectProjects(){
