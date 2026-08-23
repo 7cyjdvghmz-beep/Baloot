@@ -131,7 +131,7 @@
   #play-N{top:0;left:50%;transform:translateX(-50%) rotate(-2deg);}
   #play-E{left:6px;top:50%;transform:translateY(-50%) rotate(-8deg);}
   #play-W{right:6px;top:50%;transform:translateY(-50%) rotate(8deg);}
-  #buyer{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:6;}
+  #buyer{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10;}
 
   /* ---------- Seats / plates ---------- */
   .seat{position:absolute;display:flex;flex-direction:column;align-items:center;width:118px;z-index:12;}
@@ -295,7 +295,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v136</div>
+  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v140</div>
 <div id="topbar">
     <div class="tb-side">
       <div class="tb" id="view-btn">🪑<small>مقعدي</small></div>
@@ -333,8 +333,8 @@
       <div class="play" id="play-E"></div>
       <div class="play" id="play-W"></div>
       <div class="play" id="play-S"></div>
-      <div id="buyer"></div>
     </div>
+    <div id="buyer"></div>
 
     <!-- seats -->
     <div class="seat" id="seat-N">
@@ -392,6 +392,8 @@
   <button id="hand-tiltp">ميل يد +</button>
   <button id="hand-rotm">لف يد ⟲</button>
   <button id="hand-rotp">لف يد ⟳</button>
+  <button id="buyer-minus">أرض −</button>
+  <button id="buyer-plus">أرض +</button>
   <button id="edit-copy">📋 نسخ</button>
   <button id="edit-done">✓ اعتماد</button>
 </div>
@@ -717,7 +719,7 @@ function startHand(){
 
 /* ---------- helpers ---------- */
 function setActive(seat){for(const s of SEATS)el('seat-'+s).classList.remove('active');el('seat-'+P(seat)).classList.add('active');}
-function renderBuyer(show){const b=el('buyer');b.innerHTML='';if(show&&G.buyer){b.appendChild(cardEl(G.buyer,true));b.style.display='block';}else b.style.display='none';}
+function renderBuyer(show){const b=el('buyer');b.innerHTML='';if(show&&G.buyer){b.appendChild(cardEl(G.buyer,true));b.style.display='block';try{applyBuyerScale();}catch(e){}}else b.style.display='none';}
 function bubble(seat,text,ms=1100){
   sayKeyword(text);
   const pp=P(seat);
@@ -898,7 +900,8 @@ function dblAskRaise(){
   }
 }
 function dblRaise(lvl,who){
-  G.dbl.level=lvl;dblSay(who,lvl);try{renderBadges();}catch(e){}
+  G.dbl.level=lvl;G.dbl.by=who;G.dbl.byTeam=TEAM[who];   // الشارة تنتقل لمن رفع المستوى
+  dblSay(who,lvl);try{renderBadges();}catch(e){}
   if(lvl==='gahwa'){setTimeout(dblDone,1000);return;}
   if(lvl==='four'){setTimeout(dblAfterDeclare,900);return;}   // الأربعة تعيد خيار مقفل/مفتوح للمدبِّل
   setTimeout(dblAskRaise,900);                                 // الثلاثة مفتوحة دائمًا
@@ -2574,6 +2577,12 @@ function renderBadges(){
     const op=G.ownerProjects&&G.ownerProjects[s];
     if(projectsVisible()&&op&&G.projShown[s]&&!(G.projHidden&&G.projHidden[s])){pb.textContent=op.name;pb.style.display='block';}
     else pb.style.display='none';
+    // شارة الدبل: لصاحب المستوى الحالي فقط
+    let lv=seat.querySelector('.ailvl');
+    const owner=(G&&G.dbl&&G.dbl.level)?G.dbl.by:null;
+    const dtxt=(owner&&s===owner)?dblStatusText():'';
+    if(!dtxt){if(lv)lv.remove();}
+    else{if(!lv){lv=document.createElement('div');lv.className='ailvl';seat.appendChild(lv);}lv.textContent=dtxt;}
   }
   renderProjects();
 }
@@ -2778,16 +2787,18 @@ function renderAll(){
     const elS=el('seat-'+P(s));
     elS.querySelector('[data-nm]').textContent=PLATE[s].nm;
     let lv=elS.querySelector('.ailvl');
-    const dtxt=dblStatusText();
+    // شارة الدبل تخص صاحب المستوى الحالي وحده
+    const owner=(G&&G.dbl&&G.dbl.level)?G.dbl.by:null;
+    const dtxt=(owner&&s===owner)?dblStatusText():'';
     if(!dtxt){if(lv)lv.remove();}
     else{if(!lv){lv=document.createElement('div');lv.className='ailvl';elS.appendChild(lv);}lv.textContent=dtxt;}
   }
   const hn=el('handname');if(hn){const nm=hn.querySelector('.nm');if(nm)nm.textContent=PLATE[VIEW].nm;}
 }
 /* ---------- layout editor (move all elements) ---------- */
-const MOVABLE=['scorebox','rug','center','play-N','play-E','play-W','play-S','seat-N','seat-E','seat-W','seat-S','fan-N','fan-E','fan-W','proj-N','proj-E','proj-W','proj-S','hand-wrap','actionbar'];
-const LKEY='baloot_layout_v8';
-const DEFAULT_LAYOUT={"rug": {"dx": -2, "dy": 96}, "fan-N": {"dx": 0, "dy": -159}, "fan-E": {"dx": -152, "dy": 10}, "fan-W": {"dx": 145, "dy": 11}, "proj-N": {"dx": -34, "dy": -26}, "proj-E": {"dx": -26, "dy": 53}, "proj-W": {"dx": 18, "dy": 48}, "proj-S": {"dx": 148, "dy": 37}, "center": {"dx": -26, "dy": 83}, "play-N": {"dx": -7, "dy": 3}, "play-E": {"dx": 51, "dy": -44}, "play-W": {"dx": -9, "dy": -46}, "play-S": {"dx": -5, "dy": -23}, "seat-N": {"dx": 1, "dy": 28}, "seat-E": {"dx": -6, "dy": 76}, "seat-W": {"dx": -6, "dy": 70}, "seat-S": {"dx": -161, "dy": 21}, "hand-wrap": {"dx": 0, "dy": -50}, "actionbar": {"dx": -3, "dy": -25}};
+const MOVABLE=['scorebox','rug','center','play-N','play-E','play-W','play-S','seat-N','seat-E','seat-W','seat-S','fan-N','fan-E','fan-W','proj-N','proj-E','proj-W','proj-S','hand-wrap','actionbar','buyer'];
+const LKEY='baloot_layout_v9';
+const DEFAULT_LAYOUT={"rug": {"dx": 3, "dy": 105}, "fan-N": {"dx": 0, "dy": -159}, "fan-E": {"dx": -152, "dy": 10}, "fan-W": {"dx": 145, "dy": 11}, "proj-N": {"dx": -34, "dy": -26}, "proj-E": {"dx": -26, "dy": 53}, "proj-W": {"dx": 18, "dy": 48}, "proj-S": {"dx": 148, "dy": 37}, "center": {"dx": -26, "dy": 83}, "play-N": {"dx": -7, "dy": 3}, "play-E": {"dx": 51, "dy": -44}, "play-W": {"dx": -9, "dy": -46}, "play-S": {"dx": -5, "dy": -23}, "seat-N": {"dx": 1, "dy": 28}, "seat-E": {"dx": -6, "dy": 76}, "seat-W": {"dx": -6, "dy": 70}, "seat-S": {"dx": -161, "dy": 21}, "hand-wrap": {"dx": 4, "dy": -23}, "actionbar": {"dx": -3, "dy": -25}, "buyer": {"dx": -10, "dy": 78}};
 let LAYOUT={};
 const PKEY='baloot_proj_v3';
 const DEFAULT_PROJ={S:{scale:1.9,vertical:false,overlap:0.85,tilt:9,rot:0},N:{scale:1.6,vertical:false,overlap:0.85,tilt:6,rot:-180},E:{scale:1.6,vertical:true,overlap:0.85,tilt:7,rot:90},W:{scale:1.6,vertical:true,overlap:0.85,tilt:9,rot:-90}};
@@ -2796,6 +2807,11 @@ let SELPROJ=null;
 let PROJCFG=JSON.parse(JSON.stringify(DEFAULT_PROJ));
 const HKEY='baloot_hand_v1';
 let HANDCFG={scale:1.4,overlap:0.64,tilt:3.5,rot:0};
+const BKEY='baloot_buyer_v2';
+let BUYERCFG={scale:1.3};
+function loadBuyer(){try{const o=JSON.parse(localStorage.getItem(BKEY));if(o)BUYERCFG=Object.assign({scale:1.3},o);}catch(e){}}
+function saveBuyer(){try{localStorage.setItem(BKEY,JSON.stringify(BUYERCFG));}catch(e){}}
+function applyBuyerScale(){const b=el('buyer');if(!b)return;b.querySelectorAll('.card').forEach(c=>{c.style.width=Math.round(50*(BUYERCFG.scale||1))+'px';c.style.height=Math.round(74*(BUYERCFG.scale||1))+'px';});}
 function loadHand(){try{const o=JSON.parse(localStorage.getItem(HKEY));if(o)HANDCFG=Object.assign({scale:1.4,overlap:0.64,tilt:3.5,rot:0},o);}catch(e){}}
 function saveHand(){try{localStorage.setItem(HKEY,JSON.stringify(HANDCFG));}catch(e){}}
 function loadProj(){PROJCFG=JSON.parse(JSON.stringify(DEFAULT_PROJ));try{const o=JSON.parse(localStorage.getItem(PKEY));if(o)for(const s of SEATS)if(o[s])PROJCFG[s]=Object.assign({scale:1,vertical:false,overlap:0.5,tilt:9,rot:0},o[s]);}catch(e){}}
@@ -2823,7 +2839,7 @@ function makeDraggable(el){
   el.addEventListener('touchstart',down,{passive:false});el.addEventListener('mousedown',down);
 }
 function initLayoutEditor(){
-  LAYOUT=loadLayout();loadProj();loadHand();updateProjBtn();
+  LAYOUT=loadLayout();loadProj();loadHand();loadBuyer();updateProjBtn();
   MOVABLE.forEach(id=>{const el=document.getElementById(id);if(el){el.classList.add('movable');makeDraggable(el);}});
   applyLayout();
 }
@@ -2840,7 +2856,7 @@ function renderPlayEdit(){
 function exportLayout(){
   const layout={};
   document.querySelectorAll('.movable').forEach(el=>{if(el._dx||el._dy)layout[el.id]={dx:Math.round(el._dx),dy:Math.round(el._dy)};});
-  return JSON.stringify({layout,proj:PROJCFG,hand:HANDCFG});
+  return JSON.stringify({layout,proj:PROJCFG,hand:HANDCFG,buyer:BUYERCFG});
 }
 function copyLayout(){
   const data=exportLayout();
@@ -2929,6 +2945,8 @@ window.addEventListener('load',()=>{
   })();
   el('edit-done').onclick=toggleEdit;
   el('edit-copy').onclick=copyLayout;
+  el('buyer-minus').onclick=()=>{BUYERCFG.scale=Math.max(0.6,+((BUYERCFG.scale||1)-0.1).toFixed(2));saveBuyer();applyBuyerScale();};
+  el('buyer-plus').onclick=()=>{BUYERCFG.scale=Math.min(2.6,+((BUYERCFG.scale||1)+0.1).toFixed(2));saveBuyer();applyBuyerScale();};
   el('hand-minus').onclick=()=>{HANDCFG.scale=Math.max(0.7,+(HANDCFG.scale-0.1).toFixed(2));saveHand();renderHand();};
   el('hand-plus').onclick=()=>{HANDCFG.scale=Math.min(1.7,+(HANDCFG.scale+0.1).toFixed(2));saveHand();renderHand();};
   el('hand-close').onclick=()=>{HANDCFG.overlap=Math.min(0.85,+(((HANDCFG.overlap??0.4))+0.06).toFixed(2));saveHand();renderHand();};
