@@ -265,6 +265,9 @@
 
   /* ---------- Bid / action bar (bottom) ---------- */
   #actionbar{display:flex;gap:8px;padding:6px 10px 12px;justify-content:center;align-items:center;min-height:58px;flex-wrap:wrap;}
+  .tb-snd{position:relative;display:flex;flex-direction:column;align-items:center;}
+  #slap-sel{display:none;position:absolute;top:100%;margin-top:4px;z-index:60;font:inherit;font-size:10px;font-weight:700;padding:2px 4px;border-radius:7px;
+    border:1px solid var(--gold);background:var(--plate);color:#2b2620;max-width:74px;}
   .ab-idle{color:rgba(60,50,35,.38);font-size:11px;font-weight:700;border:1px dashed rgba(60,50,35,.22);border-radius:11px;padding:9px 16px;pointer-events:none;user-select:none;}
   .ab-pre-tag{flex-basis:100%;text-align:center;font-size:10px;font-weight:700;color:rgba(60,50,35,.6);margin-bottom:2px;pointer-events:none;}
   .abtn.pre{opacity:.75;}
@@ -301,11 +304,11 @@
 </head>
 <body>
 <div id="app">
-  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v147</div>
+  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v151</div>
 <div id="topbar">
     <div class="tb-side">
       <div class="tb" id="view-btn">🪑<small>مقعدي</small></div>
-      <div class="tb" id="snd-btn">🔊<small>الصوت</small></div>
+      <div class="tb-snd"><div class="tb" id="snd-btn">🔊<small>الصوت</small></div><select id="slap-sel" title="صوت لعب الورقة"></select></div>
       <div class="tb" id="dbg-btn">🐞<small>تدقيق</small></div>
     </div>
     <div id="scorebox">
@@ -587,42 +590,90 @@ function stopClips(){
   CLIP_QUEUE.length=0;CLIP_BUSY=false;
   if(CLIP_AUDIO){try{CLIP_AUDIO.onended=null;CLIP_AUDIO.pause();}catch(e){}CLIP_AUDIO=null;}
 }
-/* ---------- صوت ضربة الورقة على الطاولة (مولّد برمجيًا) ---------- */
-function cardSlap(){
+/* ---------- بنك أصوات لعب الورقة: 20 خيارًا مولّدة برمجيًا ---------- */
+const SLAP_KEY='baloot_slap_v1';
+let SLAP_ID=0;
+function loadSlap(){try{const v=parseInt(localStorage.getItem(SLAP_KEY),10);if(!isNaN(v)&&v>=0&&v<SLAPS.length)SLAP_ID=v;}catch(e){}}
+function saveSlap(){try{localStorage.setItem(SLAP_KEY,String(SLAP_ID));}catch(e){}}
+function actx(){
+  const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;
+  AUDIO_CTX=AUDIO_CTX||new AC();
+  if(AUDIO_CTX.state==='suspended')AUDIO_CTX.resume();
+  return AUDIO_CTX;
+}
+/* لبنة ضوضاء مُرشّحة */
+function nz(ctx,t,dur,freq,q,gain,type,decay){
+  const sr=ctx.sampleRate,n=Math.max(1,Math.floor(sr*dur));
+  const buf=ctx.createBuffer(1,n,sr),d=buf.getChannelData(0);
+  for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,decay||3);
+  const s=ctx.createBufferSource();s.buffer=buf;
+  const f=ctx.createBiquadFilter();f.type=type||'bandpass';f.frequency.value=freq;f.Q.value=q;
+  const g=ctx.createGain();
+  g.gain.setValueAtTime(gain,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  s.connect(f);f.connect(g);g.connect(ctx.destination);s.start(t);s.stop(t+dur);
+}
+/* لبنة نغمة هابطة */
+function tn(ctx,t,f1,f2,dur,gain,type){
+  const o=ctx.createOscillator(),g=ctx.createGain();
+  o.type=type||'sine';
+  o.frequency.setValueAtTime(f1,t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(20,f2),t+dur);
+  g.gain.setValueAtTime(gain,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+dur+0.01);
+}
+const SLAPS=[
+ {n:'صفعة',    f:(c,t)=>{nz(c,t,0.12,1500,0.5,0.42,'bandpass',2.8);tn(c,t,210,55,0.11,0.36);}},
+ {n:'طبلة',    f:(c,t)=>{nz(c,t,0.05,1000,1.0,0.16,'bandpass',4);tn(c,t,150,50,0.22,0.44,'sine');}},
+ {n:'مكتوم',   f:(c,t)=>{nz(c,t,0.09,600,0.8,0.30,'lowpass',3);tn(c,t,110,55,0.10,0.26);}},
+ {n:'بدون صوت ورق', f:()=>{}},
+ {n:'🔇 كتم الكل', mute:true, f:()=>{}}
+];
+const MUTE_ID=4;
+function cardSlap(preview){
+  if(!SOUND_ON&&!preview)return;
+  try{const c=actx();if(!c)return;(SLAPS[SLAP_ID]||SLAPS[0]).f(c,c.currentTime);}catch(e){}
+}
+/* ---------- صوت الدق: أكل بورقة حكم على نوع غير الحكم ---------- */
+function isDag(seat,card){
+  if(G.mode!=='hokm')return false;          // الحكم فقط
+  const tr=trumpSuit(); if(!tr)return false;
+  if(!G.trick||!G.trick.length)return false; // الفاتح لا يدق
+  const lead=G.trick[0].card.s;
+  if(lead===tr)return false;                 // النوع المفتوح حكم = تربيع، ليس دقًّا
+  return card.s===tr;                        // رمى حكمًا على نوع آخر
+}
+function dagSound(){
   if(!SOUND_ON)return;
-  try{
-    const AC=window.AudioContext||window.webkitAudioContext;
-    if(!AC)return;
-    AUDIO_CTX=AUDIO_CTX||new AC();
-    if(AUDIO_CTX.state==='suspended')AUDIO_CTX.resume();
-    const ctx=AUDIO_CTX, t=ctx.currentTime;
-
-    // 1) نقرة عريضة: ضوضاء قصيرة تحاكي احتكاك الورق
-    const dur=0.13, sr=ctx.sampleRate, n=Math.max(1,Math.floor(sr*dur));
-    const buf=ctx.createBuffer(1,n,sr), d=buf.getChannelData(0);
-    for(let i=0;i<n;i++){
-      const p=i/n;
-      d[i]=(Math.random()*2-1)*Math.pow(1-p,3.2);   // انحسار سريع
+  try{const c=actx();if(!c)return;SLAPS[0].f(c,c.currentTime);}catch(e){}
+}
+function syncSndIcon(){
+  const b=el('snd-btn');if(b&&b.firstChild)b.firstChild.textContent=SOUND_ON?'🔊':'🔇';
+}
+function hideSlapMenu(){const s=el('slap-sel');if(s)s.style.display='none';}
+function toggleSlapMenu(){
+  const s=el('slap-sel');if(!s)return;
+  const open=s.style.display==='block';
+  if(open){s.style.display='none';return;}
+  s.value=SOUND_ON?SLAP_ID:MUTE_ID;
+  s.style.display='block';
+  try{s.focus();}catch(e){}
+}
+function buildSlapPicker(){
+  const sel=el('slap-sel');if(!sel)return;
+  sel.innerHTML='';
+  SLAPS.forEach((s,i)=>{const o=document.createElement('option');o.value=i;o.textContent=(i+1)+'. '+s.n;sel.appendChild(o);});
+  sel.value=SLAP_ID;
+  sel.onchange=()=>{
+    const v=+sel.value;
+    unlockAudio();
+    if(SLAPS[v]&&SLAPS[v].mute){
+      SOUND_ON=false;stopClips();
+      try{if('speechSynthesis'in window)speechSynthesis.cancel();}catch(e){}
+      syncSndIcon();hideSlapMenu();return;
     }
-    const src=ctx.createBufferSource();src.buffer=buf;
-    const bp=ctx.createBiquadFilter();bp.type='bandpass';
-    bp.frequency.value=1900;bp.Q.value=0.8;
-    const ng=ctx.createGain();
-    ng.gain.setValueAtTime(0.34,t);
-    ng.gain.exponentialRampToValueAtTime(0.001,t+dur);
-    src.connect(bp);bp.connect(ng);ng.connect(ctx.destination);
-    src.start(t);src.stop(t+dur);
-
-    // 2) دفعة منخفضة: رنّة الخشب تحت الضربة
-    const o=ctx.createOscillator(),og=ctx.createGain();
-    o.type='sine';
-    o.frequency.setValueAtTime(190,t);
-    o.frequency.exponentialRampToValueAtTime(72,t+0.09);
-    og.gain.setValueAtTime(0.30,t);
-    og.gain.exponentialRampToValueAtTime(0.001,t+0.10);
-    o.connect(og);og.connect(ctx.destination);
-    o.start(t);o.stop(t+0.11);
-  }catch(e){}
+    SLAP_ID=v;saveSlap();SOUND_ON=true;syncSndIcon();cardSlap(true);hideSlapMenu();
+  };
+  sel.onclick=(e)=>e.stopPropagation();
 }
 function playClips(keys){
   // play a sequence of clips back-to-back (e.g. حكم + هاص)
@@ -2174,9 +2225,10 @@ function playCard(seat,card){
       if(card.s!==trumpSuit()&&G.signal)G.signal[seat]=card.s;}}
   const h=G.hands[seat],i=h.findIndex(c=>c.s===card.s&&c.r===card.r);if(i<0)return;h.splice(i,1);
   if(G.history)G.history.push({t:G.trickNo,seat,card:{s:card.s,r:card.r}});
+  const _dag=isDag(seat,card);
   G.trick.push({seat,card});checkBaloot(seat,card);
   renderPlay(seat,card);renderHand();renderFans();
-  try{cardSlap();}catch(e){}
+  try{_dag?dagSound():cardSlap();}catch(e){}
   if(G.trickNo===1&&!G.announced[seat]){G.announced[seat]=true;
     const list=declaredList(seat);
     if(list.length){const txt=list.length>1?list.map(x=>x.name).join(' + '):list[0].name;
@@ -2883,7 +2935,8 @@ function makeDraggable(el){
   el.addEventListener('touchstart',down,{passive:false});el.addEventListener('mousedown',down);
 }
 function initLayoutEditor(){
-  LAYOUT=loadLayout();loadProj();loadHand();loadBuyer();updateProjBtn();
+  LAYOUT=loadLayout();loadProj();loadHand();loadBuyer();loadSlap();buildSlapPicker();updateProjBtn();syncSndIcon();
+  document.addEventListener('click',(e)=>{const w=e.target.closest&&e.target.closest('.tb-snd');if(!w)hideSlapMenu();});
   MOVABLE.forEach(id=>{const el=document.getElementById(id);if(el){el.classList.add('movable');makeDraggable(el);}});
   applyLayout();
 }
@@ -2936,7 +2989,7 @@ window.addEventListener('load',()=>{
       t=setTimeout(()=>{if(n>=3){const d=window.AUDIO_DIAG||{};
         toast('تشخيص الصوت','فتح:'+d.unlock+' · سياق:'+d.ctx+' · تهيئة:'+d.prime+' · مقاطع:'+d.clips+' · آخر:'+(d.lastPlay||'-')+' · خطأ:'+(d.lastErr||'-'));}
         n=0;},700);});})();
-  el('snd-btn').onclick=()=>{unlockAudio();SOUND_ON=!SOUND_ON;el('snd-btn').firstChild.textContent=SOUND_ON?'🔊':'🔇';if(!SOUND_ON){stopClips();if('speechSynthesis'in window){try{speechSynthesis.cancel();}catch(e){}}}};
+  el('snd-btn').onclick=()=>{unlockAudio();toggleSlapMenu();};
   // long-press 🔊 → preview every announcement so the voice can be judged quickly
   (function(){
     const b=el('snd-btn');if(!b)return;let t=null;
