@@ -309,7 +309,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v152</div>
+  <div id="ver" style="position:fixed;bottom:2px;left:5px;z-index:999;pointer-events:none;font-size:9px;letter-spacing:.5px;color:rgba(255,255,255,.4);font-family:monospace;">v154</div>
 <div id="topbar">
     <div class="tb-side">
       <div class="tb" id="view-btn">🪑<small>مقعدي</small></div>
@@ -2189,8 +2189,32 @@ function buildInfo(seat){
     seen,pts:{0:p0,1:p1},
     void:{S:Object.assign({},G.void.S),W:Object.assign({},G.void.W),N:Object.assign({},G.void.N),E:Object.assign({},G.void.E)},
     signal:Object.assign({},G.signal),reveal};}
+/* دق العشرة على إكة الشريك — في الحكم فقط.
+   إن كان الشريك يكسب بإكة نوع غير الحكم ومعي عشرة نفس النوع،
+   ألعبها الآن: أضمن نقاطها قبل أن يقطعها الخصم بالحكم لاحقًا. */
+function tenOnPartnerAce(seat){
+  if(G.mode!=='hokm')return null;              // لا تنطبق على الصن
+  if(!G.trick||!G.trick.length)return null;    // لست الفاتح
+  const tr=trumpSuit(), lead=G.trick[0].card.s;
+  if(!tr||lead===tr)return null;               // النوع المفتوح حكم = لا تنطبق
+  // من يكسب الأكلة الآن؟
+  let ws=null,wc=null,wstr=-1;
+  for(const p of G.trick){
+    const st=rankStrength(p.card,lead);
+    if(st>wstr){wstr=st;ws=p.seat;wc=p.card;}
+  }
+  if(!ws||TEAM[ws]!==TEAM[seat]||ws===seat)return null;  // الشريك تحديدًا
+  if(!(wc&&wc.r==='A'&&wc.s===lead))return null;         // وبإكة نفس النوع
+  const ten=legalCards(seat).find(c=>c.s===lead&&c.r==='10');
+  return ten||null;
+}
 function aiPlay(seat){
   let chosen=null,why='';
+  const _ten=tenOnPartnerAce(seat);
+  if(_ten){
+    aiLog({seat,trick:G.trickNo,choice:simKey(_ten),why:'دق العشرة على إكة الشريك'});
+    return _ten;
+  }
   try{
     const info=buildInfo(seat);
     const r=mcPick(info);
@@ -2899,8 +2923,8 @@ function renderAll(){
 }
 /* ---------- layout editor (move all elements) ---------- */
 const MOVABLE=['scorebox','rug','center','play-N','play-E','play-W','play-S','seat-N','seat-E','seat-W','seat-S','fan-N','fan-E','fan-W','proj-N','proj-E','proj-W','proj-S','hand-wrap','actionbar','buyer'];
-const LKEY='baloot_layout_v10';
-const DEFAULT_LAYOUT={"rug": {"dx": 3, "dy": 105}, "fan-N": {"dx": 0, "dy": -159}, "fan-E": {"dx": -152, "dy": 10}, "fan-W": {"dx": 145, "dy": 11}, "proj-N": {"dx": -34, "dy": -26}, "proj-E": {"dx": -26, "dy": 53}, "proj-W": {"dx": 18, "dy": 48}, "proj-S": {"dx": 148, "dy": 37}, "center": {"dx": -26, "dy": 83}, "play-N": {"dx": -7, "dy": 3}, "play-E": {"dx": 51, "dy": -44}, "play-W": {"dx": -9, "dy": -46}, "play-S": {"dx": -5, "dy": -23}, "seat-N": {"dx": 1, "dy": 28}, "seat-E": {"dx": -6, "dy": 76}, "seat-W": {"dx": -6, "dy": 70}, "seat-S": {"dx": -161, "dy": 21}, "hand-wrap": {"dx": 4, "dy": -23}, "actionbar": {"dx": -3, "dy": -25}, "buyer": {"dx": 0, "dy": 81}};
+const LKEY='baloot_layout_v11';
+const DEFAULT_LAYOUT={"rug": {"dx": 3, "dy": 105}, "fan-N": {"dx": 0, "dy": -159}, "fan-E": {"dx": -152, "dy": 10}, "fan-W": {"dx": 145, "dy": 11}, "proj-N": {"dx": -34, "dy": -26}, "proj-E": {"dx": 9, "dy": 63}, "proj-W": {"dx": -17, "dy": 62}, "proj-S": {"dx": 153, "dy": 32}, "center": {"dx": -26, "dy": 83}, "play-N": {"dx": -7, "dy": 3}, "play-E": {"dx": 51, "dy": -44}, "play-W": {"dx": -9, "dy": -46}, "play-S": {"dx": -5, "dy": -23}, "seat-N": {"dx": 1, "dy": 28}, "seat-E": {"dx": -6, "dy": 76}, "seat-W": {"dx": -6, "dy": 70}, "seat-S": {"dx": -175, "dy": 101}, "hand-wrap": {"dx": 4, "dy": -23}, "actionbar": {"dx": -3, "dy": -25}, "buyer": {"dx": 0, "dy": 81}};
 let LAYOUT={};
 const PKEY='baloot_proj_v3';
 const DEFAULT_PROJ={S:{scale:1.9,vertical:false,overlap:0.85,tilt:9,rot:0},N:{scale:1.6,vertical:false,overlap:0.85,tilt:6,rot:-180},E:{scale:1.6,vertical:true,overlap:0.85,tilt:7,rot:90},W:{scale:1.6,vertical:true,overlap:0.85,tilt:9,rot:-90}};
